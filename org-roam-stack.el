@@ -217,10 +217,11 @@ idx-a < idx-b!"
   "kill the buffer and remove it from view and stack if kill is successful return t, return nil otherwise"
   (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list)))
     (org-roam-stack--remove-buffer-from-list buffer)
-    (let ((killed (kill-buffer buffer)))
+    (let ((win (get-buffer-window buffer))
+          (killed (kill-buffer buffer)))
       (if killed
           (progn
-            (delete-window (get-buffer-window buffer))
+            (delete-window win)
             t)
         (setq org-roam-stack--buffer-list (-insert-at idx-before buffer org-roam-stack--buffer-list))
         nil))))
