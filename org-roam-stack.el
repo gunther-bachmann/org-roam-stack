@@ -275,6 +275,7 @@ idx-a < idx-b!"
 (defun org-roam-stack--maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
   (interactive)
+  (setq org-roam-stack--stack-height (frame-height))
   (ignore-errors
     (--dotimes 2
       (when (< 1 (cl-list-length org-roam-stack--buffer-list))
@@ -283,6 +284,7 @@ idx-a < idx-b!"
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
   (interactive)
+  (setq org-roam-stack--stack-height (frame-height))
   (--dotimes 2
     (let ((card-window-height (/ (- org-roam-stack--stack-height (cl-list-length org-roam-stack--buffer-list)) (cl-list-length org-roam-stack--buffer-list))))
       (--each (-butlast (reverse org-roam-stack--buffer-list))
