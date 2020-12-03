@@ -77,9 +77,11 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
   "is the given buffer in the stack?"
-  (--none-p (s-equals-p (buffer-name buffer)
-                        (buffer-name it))
-            org-roam-stack--buffer-list))
+  (or
+   (null buffer)
+   (--none-p (s-equals-p (buffer-name buffer)
+                         (buffer-name it))
+             org-roam-stack--buffer-list)))
 
 (defun org-roam-stack--buffer-in-stack-p (buffer)
   (not (org-roam-stack--buffer-not-in-stack-p buffer)))
@@ -110,15 +112,17 @@ idx-a < idx-b!"
 (defun org-roam-stack--open-in-stack (roam-file &optional dir)
   (if (org-roam-stack--buffer-not-in-stack-p (current-buffer))
       (org-roam-stack--open roam-file)
-    (split-window-below)
-    (let ((buffer (current-buffer)))
-      (when (eq dir 'below)
-        (other-window 1))
-      (org-roam-stack--open-file roam-file)
-      (if (eq dir 'below)
-          (org-roam-stack--insert-buffer-after-existing buffer (current-buffer))
-        (org-roam-stack--insert-buffer-before-existing buffer (current-buffer)))
-      (org-roam-stack--execute-buffer-open-resize-strategy))))
+    (if (org-roam-stack--buffer-in-stack-p (get-file-buffer roam-file))
+        (select-window (get-buffer-window (get-file-buffer roam-file)))
+      (split-window-below)
+      (let ((buffer (current-buffer)))
+        (when (eq dir 'below)
+          (other-window 1))
+        (org-roam-stack--open-file roam-file)
+        (if (eq dir 'below)
+            (org-roam-stack--insert-buffer-after-existing buffer (current-buffer))
+          (org-roam-stack--insert-buffer-before-existing buffer (current-buffer)))
+        (org-roam-stack--execute-buffer-open-resize-strategy)))))
 
 (defun org-roam-stack--open-file (roam-file)
   "open the file and register key bindings and file open hooks"
@@ -132,10 +136,11 @@ idx-a < idx-b!"
 (defun org-roam-stack--open-file-above (roam-file)
   (org-roam-stack--open-in-stack roam-file 'above))
 
-(defun org-roam-stack--enter-stack-from-outside ()
+(defun org-roam-stack--enter-stack-from-outside (roam-file)
   "strategy to ensure stack layout if not within the stack currently"
   (if org-roam-stack--buffer-list
-      (progn
+      (if (org-roam-stack--buffer-in-stack-p (get-file-buffer roam-file))
+          (select-window (get-buffer-window (get-file-buffer roam-file)))
         (when-let ((bwin (get-buffer-window (car org-roam-stack--buffer-list))))
           (when (window-valid-p bwin)
             (select-window bwin)
@@ -149,9 +154,10 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--open (roam-file)
   "open the given file in stack"
-  (org-roam-stack--enter-stack-from-outside)
-  (org-roam-stack--open-file roam-file)
-  (push (get-file-buffer roam-file) org-roam-stack--buffer-list)
+  (org-roam-stack--enter-stack-from-outside roam-file)
+  (when (org-roam-stack--buffer-not-in-stack-p (get-file-buffer roam-file))
+    (org-roam-stack--open-file roam-file)
+    (push (get-file-buffer roam-file) org-roam-stack--buffer-list))
   (org-roam-stack--execute-buffer-open-resize-strategy))
 
 (defun org-roam-stack--register-org-roam-stack-find-file ()
