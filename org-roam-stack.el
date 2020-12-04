@@ -59,13 +59,19 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
     ( "C-x k"           . org-roam-stack--remove-current-buffer-from-stack)
     ( "<S-s-return>"    . org-roam-stack--maximize-current-buffer)
     ( "<C-s-return>"    . org-roam-stack--maximize-current-buffer)
-    ( "<S-s-left>"      . org-roam-stack--void)   ;; unbind the given merge behaviour
+    ( "<S-s-left>"      . org-roam-stack--void) ;; unbind the given merge behaviour
     ( "<S-s-right>"     . org-roam-stack--void) ;; unbind the given merge behaviour
     ( "<S-s-up>"        . org-roam-stack--merge-current-with-above)
     ( "<S-s-backspace>" . org-roam-stack--balance-stack)
     ( "<S-s-down>"      . org-roam-stack--merge-current-with-below)
     ( "<M-s-up>"        . org-roam-stack--move-buffer-up)
-    ( "<M-s-down>"      . org-roam-stack--move-buffer-down)))
+    ( "<M-s-down>"      . org-roam-stack--move-buffer-down)
+    ( "C-x 1"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ( "C-x 2"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ( "C-x 3"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ( "C-x 4"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ( "C-x 5"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ))
 
 (defvar org-roam-stack--focused t
   "stay focused, dim other cards in the stack")
@@ -343,28 +349,26 @@ idx-a < idx-b!"
   (push '("org-roam-file"  :protocol "roam-file"   :function org-roam-protocol-open-file) org-protocol-protocol-alist))
 
 (defun org-roam-stack--notdeft-find-file-advice (_ &rest args)
-  (message "called")
   (prog1 (org-roam-stack--open (car args))
     (notdeft-note-mode 1)))
 
-;; experimental code
-(when nil
-  (org-roam-stack--register-open-file-protocol)
-
-  (setq-local org-link-frame-setup (cons '(file . org-roam-stack--open) org-link-frame-setup))
-
-  (pop org-roam-stack--buffer-list)
-  (setq org-roam-stack--buffer-list nil)
-  (org-roam-stack--report)
-  (org-roam-stack--register-open-file-protocol)
-
-  (org-roam-stack--open "~/documents/roam/dunst.org")
-  (org-roam-stack--open "~/documents/roam/machine-setup.org")
-  (org-roam-stack--open "~/documents/roam/jvm.org")
-  (org-roam-stack--open "~/documents/roam/racket.org")
-  (org-roam-stack--open "~/documents/roam/elisp.org")
-
-  (org-roam-stack--balance-stack))
+(defun org-roam-stack--delete-window-advice (orig-fun &rest args)
+  "make sure to delete the buffer of the killed window from the stack list of buffers, but only if really killed"
+  (let* ((window (car args))
+         (buffer (window-buffer window)))
+    (if (org-roam-stack--buffer-not-in-stack-p buffer)
+        (apply orig-fun args)
+      (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list))
+                 (filename (buffer-file-name buffer)))
+        ;; (message "deleting buffer from stack, too")
+        (org-roam-stack--remove-buffer-from-list buffer)
+        (apply orig-fun args)
+        ;; check for still active window for the buffer
+        (when-let* ((re-buffer (get-file-buffer filename))
+                    (re-win (get-buffer-window re-buffer)))
+          (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
+          ;; (message "restore buffer in stack, since window was not deleted")
+          )))))
 
 ;;;###autoload
 (define-minor-mode org-roam-stack-mode
@@ -375,6 +379,7 @@ idx-a < idx-b!"
       (progn
         (org-roam-stack--register-open-file-protocol)
         (add-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
+        (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (when (functionp 'notdeft-find-file)
           (advice-add 'notdeft-find-file :around 'org-roam-stack--notdeft-find-file-advice))
         ;; make sure that starting the org roam server does not place another :roam-file entry!
@@ -383,6 +388,7 @@ idx-a < idx-b!"
 
     (org-roam-stack--unregister-open-file-protocol)
     (remove-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
+    (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (when (functionp 'notdeft-find-file)
       (advice-remove 'notdeft-find-file 'org-roam-stack--notdeft-find-file-advice))))
 
