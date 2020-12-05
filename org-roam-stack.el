@@ -42,7 +42,7 @@
   "organize org roam cards in a stack"
   :group 'org-roam)
 
-(defvar org-roam-stack--stack-height (window-height (get-buffer-window))
+(defvar org-roam-stack--stack-height (frame-height)
   "height of the stack used for balance window calculations")
 
 (defvar org-roam-stack--buffer-list '()
@@ -78,8 +78,9 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
-    ('(maximize) (org-roam-stack--maximize-current-buffer))
-    ('(balance) (org-roam-stack--balance-stack))))
+    ('maximize (org-roam-stack--maximize-current-buffer))
+    ('balance (org-roam-stack--balance-stack))
+    (t nil)))
 
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
   "is the given buffer in the stack?"
@@ -245,7 +246,8 @@ idx-a < idx-b!"
         (message (format "cannot remove modified card: %s" (buffer-name buffer)))
       (if-let (upper-window (windmove-find-other-window 'up))
           (when (equal upper-window (get-buffer-window buffer))
-            (org-roam-stack--remove-buffer-from-view-and-stack buffer))))))
+            (org-roam-stack--remove-buffer-from-view-and-stack buffer)
+            (org-roam-stack--execute-buffer-open-resize-strategy))))))
 
 (defun org-roam-stack--merge-current-with-below ()
   (interactive)
@@ -254,7 +256,8 @@ idx-a < idx-b!"
         (message (format "cannot remove modified card: %s" (buffer-name buffer)))
       (if-let (lower-window (windmove-find-other-window 'down))
           (when (equal lower-window (get-buffer-window buffer))
-            (org-roam-stack--remove-buffer-from-view-and-stack buffer))))))
+            (org-roam-stack--remove-buffer-from-view-and-stack buffer)
+            (org-roam-stack--execute-buffer-open-resize-strategy))))))
 
 (defun org-roam-stack--void ()
   "do nothing"
@@ -282,7 +285,8 @@ idx-a < idx-b!"
 (defun org-roam-stack--remove-current-buffer-from-stack (_)
   "remove current buffer from stack, making space for others"
   (interactive "P")
-  (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer)))
+  (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
+  (org-roam-stack--execute-buffer-open-resize-strategy))
 
 (defun org-roam-stack--maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
@@ -354,21 +358,33 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--delete-window-advice (orig-fun &rest args)
   "make sure to delete the buffer of the killed window from the stack list of buffers, but only if really killed"
-  (let* ((window (car args))
-         (buffer (window-buffer window)))
-    (if (org-roam-stack--buffer-not-in-stack-p buffer)
-        (apply orig-fun args)
-      (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list))
-                 (filename (buffer-file-name buffer)))
-        ;; (message "deleting buffer from stack, too")
-        (org-roam-stack--remove-buffer-from-list buffer)
-        (apply orig-fun args)
-        ;; check for still active window for the buffer
-        (when-let* ((re-buffer (get-file-buffer filename))
-                    (re-win (get-buffer-window re-buffer)))
-          (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
-          ;; (message "restore buffer in stack, since window was not deleted")
-          )))))
+  (when (org-roam-stack--quick-in-stack-p)
+    (let* ((window (car args))
+           (buffer (window-buffer window)))
+      (if (org-roam-stack--buffer-not-in-stack-p buffer)
+          (apply orig-fun args)
+        (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list))
+                   (filename (buffer-file-name buffer)))
+          ;; (message "deleting buffer from stack, too")
+          (org-roam-stack--remove-buffer-from-list buffer)
+          (apply orig-fun args)
+          ;; check for still active window for the buffer
+          (when-let* ((re-buffer (get-file-buffer filename))
+                      (re-win (get-buffer-window re-buffer)))
+            (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
+            ;; (message "restore buffer in stack, since window was not deleted")
+            ))))))
+
+(defun org-roam-stack--quick-in-stack-p ()
+  "check quickly whether I'm in the org roam stack"
+  (and (boundp 'org-roam-mode) org-roam-mode (org-roam-stack--buffer-in-stack-p (current-buffer))))
+
+(defun org-roam-stack--windmove-advice (orig-func &rest args)
+  "do resize strategy if using wind move commands"
+  (let ((in-stack-p (org-roam-stack--quick-in-stack-p)))
+    (apply orig-func args)
+    (when in-stack-p
+      (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 ;;;###autoload
 (define-minor-mode org-roam-stack-mode
@@ -380,6 +396,9 @@ idx-a < idx-b!"
         (org-roam-stack--register-open-file-protocol)
         (add-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
+        (when (functionp 'windmove-up)
+          (advice-add 'windmove-up :around #'org-roam-stack--windmove-advice)
+          (advice-add 'windmove-down :around #'org-roam-stack--windmove-advice))
         (when (functionp 'notdeft-find-file)
           (advice-add 'notdeft-find-file :around 'org-roam-stack--notdeft-find-file-advice))
         ;; make sure that starting the org roam server does not place another :roam-file entry!
@@ -389,6 +408,9 @@ idx-a < idx-b!"
     (org-roam-stack--unregister-open-file-protocol)
     (remove-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
+    (when (functionp 'windmove-up)
+      (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
+      (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
     (when (functionp 'notdeft-find-file)
       (advice-remove 'notdeft-find-file 'org-roam-stack--notdeft-find-file-advice))))
 
