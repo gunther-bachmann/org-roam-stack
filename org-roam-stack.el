@@ -57,12 +57,12 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 (defvar org-roam-stack--local-keybindings
   '(( "C-x C-k"         . org-roam-stack--remove-current-buffer-from-stack)
     ( "C-x k"           . org-roam-stack--remove-current-buffer-from-stack)
-    ( "<S-s-return>"    . org-roam-stack--maximize-current-buffer)
-    ( "<C-s-return>"    . org-roam-stack--maximize-current-buffer)
+    ( "<S-s-return>"    . org-roam-stack--interactive-maximize-current-buffer)
+    ( "<C-s-return>"    . org-roam-stack--interactive-maximize-current-buffer)
     ( "<S-s-left>"      . org-roam-stack--void) ;; unbind the given merge behaviour
     ( "<S-s-right>"     . org-roam-stack--void) ;; unbind the given merge behaviour
     ( "<S-s-up>"        . org-roam-stack--merge-current-with-above)
-    ( "<S-s-backspace>" . org-roam-stack--balance-stack)
+    ( "<S-s-backspace>" . org-roam-stack--interactive-balance-stack)
     ( "<S-s-down>"      . org-roam-stack--merge-current-with-below)
     ( "<M-s-up>"        . org-roam-stack--move-buffer-up)
     ( "<M-s-down>"      . org-roam-stack--move-buffer-down)
@@ -78,8 +78,8 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
-    ('maximize (org-roam-stack--maximize-current-buffer))
-    ('balance (org-roam-stack--balance-stack))
+    ('maximize (org-roam-stack--maximize-current-buffer)(recenter))
+    ('balance (org-roam-stack--balance-stack)(recenter))
     (t nil)))
 
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
@@ -288,18 +288,31 @@ idx-a < idx-b!"
   (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
   (org-roam-stack--execute-buffer-open-resize-strategy))
 
+(defun org-roam-stack--interactive-maximize-current-buffer ()
+    (interactive)
+  (setq org-roam-stack--stack-height (frame-height))
+  (if (eq org-roam-stack--buffer-open-resize-strategy 'maximize)
+      (setq org-roam-stack--buffer-open-resize-strategy nil)
+    (setq org-roam-stack--buffer-open-resize-strategy 'maximize))
+  (org-roam-stack--maximize-current-buffer))
+
 (defun org-roam-stack--maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
-  (interactive)
   (setq org-roam-stack--stack-height (frame-height))
   (ignore-errors
     (--dotimes 2
       (when (< 1 (cl-list-length org-roam-stack--buffer-list))
         (enlarge-window org-roam-stack--stack-height)))))
 
+(defun org-roam-stack--interative-balance-stack ()
+  (interactive)
+  (if (eq org-roam-stack--buffer-open-resize-strategy 'balance)
+      (setq org-roam-stack--buffer-open-resize-strategy nil)
+    (setq org-roam-stack--buffer-open-resize-strategy 'balance))
+  (org-roam-stack--balance-stack))
+
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
-  (interactive)
   (setq org-roam-stack--stack-height (frame-height))
   (--dotimes 2
     (let ((card-window-height (/ (- org-roam-stack--stack-height (cl-list-length org-roam-stack--buffer-list)) (cl-list-length org-roam-stack--buffer-list))))
@@ -358,22 +371,20 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--delete-window-advice (orig-fun &rest args)
   "make sure to delete the buffer of the killed window from the stack list of buffers, but only if really killed"
-  (when (org-roam-stack--quick-in-stack-p)
+  (if (org-roam-stack--quick-in-stack-p)
     (let* ((window (car args))
            (buffer (window-buffer window)))
       (if (org-roam-stack--buffer-not-in-stack-p buffer)
           (apply orig-fun args)
         (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list))
                    (filename (buffer-file-name buffer)))
-          ;; (message "deleting buffer from stack, too")
           (org-roam-stack--remove-buffer-from-list buffer)
           (apply orig-fun args)
           ;; check for still active window for the buffer
           (when-let* ((re-buffer (get-file-buffer filename))
                       (re-win (get-buffer-window re-buffer)))
-            (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
-            ;; (message "restore buffer in stack, since window was not deleted")
-            ))))))
+            (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))))))
+    (apply orig-fun args)))
 
 (defun org-roam-stack--quick-in-stack-p ()
   "check quickly whether I'm in the org roam stack"
@@ -381,9 +392,9 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--windmove-advice (orig-func &rest args)
   "do resize strategy if using wind move commands"
-  (let ((in-stack-p (org-roam-stack--quick-in-stack-p)))
+  (let ((was-in-stack-p (org-roam-stack--quick-in-stack-p)))
     (apply orig-func args)
-    (when in-stack-p
+    (when was-in-stack-p
       (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 ;;;###autoload
