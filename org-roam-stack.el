@@ -92,9 +92,11 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   "is the given buffer in the stack?"
   (or
    (null buffer)
-   (--none-p (string-equal (buffer-name buffer)
-                         (buffer-name it))
-             org-roam-stack--buffer-list)))
+   (not (memq buffer org-roam-stack--buffer-list))
+   ;; (--none-p (string-equal (buffer-name buffer)
+   ;;                         (buffer-name it))
+   ;;           org-roam-stack--buffer-list)
+   ))
 
 (defun org-roam-stack--buffer-in-stack-p (buffer)
   (not (org-roam-stack--buffer-not-in-stack-p buffer)))
@@ -392,7 +394,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--quick-in-stack-p ()
   "check quickly whether I'm in the org roam stack"
-  (and (boundp 'org-roam-mode) org-roam-mode (org-roam-stack--buffer-in-stack-p (current-buffer))))
+  (and (derived-mode-p 'org-mode) (org-roam-stack--buffer-in-stack-p (current-buffer))))
 
 (defun org-roam-stack--windmove-advice (orig-func &rest args)
   "do resize strategy if using wind move commands"
@@ -425,7 +427,7 @@ Group 2 contains the path.")
 ;; thanks to the great org-ref package
 (defun org-roam-stack--match-roam-file-link (&optional limit)
   "Search forward to next link up to LIMIT."
-  (when (and (org-roam-stack--quick-in-stack-p)
+  (when (and (derived-mode-p 'org-mode)
            (re-search-forward org-roam-stack--roam-link-re limit t)
            ;; make sure we are not in a comment
            (save-excursion
