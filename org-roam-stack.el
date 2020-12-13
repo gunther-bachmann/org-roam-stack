@@ -52,6 +52,11 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 (defvar org-roam-stack--buffer-open-resize-strategy 'maximize
   "either 'maximize or 'balance")
 
+(defcustom org-roam-stack--link-adjustments nil
+  "do some link font locking in org files"
+  :type 'boolean
+  :group 'org-roam-stack)
+
 (defcustom org-roam-stack--local-keybindings
   '(( "C-x C-k"         . org-roam-stack--remove-current-buffer-from-stack)
     ( "C-x k"           . org-roam-stack--remove-current-buffer-from-stack)
@@ -460,11 +465,17 @@ Group 2 contains the path.")
         ;; Must be a false match.
         (org-roam-stack--match-roam-file-link limit)))))
 
+(defvar org-roam-stack--font-lock-keyword-for-roam-link
+  '((org-roam-stack--match-roam-file-link (0  'org-roam-stack--roam-link-face t))))
+
+(defun org-roam-stack--unregister-additional-keywords ()
+  (font-lock-remove-keywords 'org-mode org-roam-stack--font-lock-keyword-for-roam-link))
+
 (defun org-roam-stack--register-additional-keywords ()
   "add keywords for colorizing org roam links"
   (font-lock-add-keywords
-   nil
-   '((org-roam-stack--match-roam-file-link (0  'org-roam-stack--roam-link-face t)))
+   'org-mode
+   org-roam-stack--font-lock-keyword-for-roam-link
    t))
 
 ;; --------------------------------------------------------------------------------
@@ -479,7 +490,8 @@ Group 2 contains the path.")
         (org-roam-stack--register-open-file-protocol)
         (add-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
-        (add-hook 'org-mode-hook #'org-roam-stack--register-additional-keywords)
+        (when org-roam-stack--link-adjustments
+          (org-roam-stack--register-additional-keywords))
         (when (functionp 'windmove-up)
           (advice-add 'windmove-up :around #'org-roam-stack--windmove-advice)
           (advice-add 'windmove-right :around #'org-roam-stack--windmove-advice)
@@ -494,7 +506,7 @@ Group 2 contains the path.")
     (org-roam-stack--unregister-open-file-protocol)
     (remove-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
-    (remove-hook 'org-mode-hook #'org-roam-stack--register-additional-keywords)
+    (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
       (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-right #'org-roam-stack--windmove-advice)
