@@ -301,6 +301,7 @@ idx-a < idx-b!"
   (org-roam-stack--execute-buffer-open-resize-strategy))
 
 (defun org-roam-stack--interactive-maximize-current-buffer ()
+  "maximize buffer and keep this balancing choice for next resize actions"
   (interactive)
   (setq org-roam-stack--stack-height (frame-height))
   (if (eq org-roam-stack--buffer-open-resize-strategy 'maximize)
@@ -312,11 +313,12 @@ idx-a < idx-b!"
   "maximize current buffer, reduce all other stack windows to minimum"
   (setq org-roam-stack--stack-height (frame-height))
   (ignore-errors
-    (--dotimes 2
+    (--dotimes 2 ;; until resize is stable
       (when (< 1 (cl-list-length org-roam-stack--buffer-list))
         (enlarge-window org-roam-stack--stack-height)))))
 
 (defun org-roam-stack--interactive-balance-stack ()
+  "balance stack and keep this balancing choice for next resize actions"
   (interactive)
   (if (eq org-roam-stack--buffer-open-resize-strategy 'balance)
       (setq org-roam-stack--buffer-open-resize-strategy nil)
@@ -326,7 +328,7 @@ idx-a < idx-b!"
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
   (setq org-roam-stack--stack-height (frame-height))
-  (--dotimes 2
+  (--dotimes 2 ;; until resize is stable
     (let ((card-window-height (/ (- org-roam-stack--stack-height (cl-list-length org-roam-stack--buffer-list)) (cl-list-length org-roam-stack--buffer-list))))
       (--each (-butlast (reverse org-roam-stack--buffer-list))
         (let* ((its-window (get-buffer-window it))
@@ -334,15 +336,26 @@ idx-a < idx-b!"
                (delta (- card-window-height lines)))
           (window-resize (get-buffer-window it) delta))))))
 
+
+(defun org-roam-stack--buffer-list-wo-current ()
+  "get the list of stack buffers without the current buffer"
+  (let ((buffer (current-buffer)))
+    (--filter (not (equal buffer it)) org-roam-stack--buffer-list)))
+
 (defun org-roam-stack--dim-other-buffers ()
-  "dim all (non selected) stack windows"
+  "dim all (non selected) stack buffer"
   (interactive)
-  (let* ((buffer (current-buffer))
-         (list-without-current (--filter (not (equal buffer it)) org-roam-stack--buffer-list)))
-    (--each list-without-current
-      (org-roam-stack--dim-buffer it))))
+  (--each (org-roam-stack--buffer-list-wo-current)
+    (org-roam-stack--dim-buffer it)))
+
+(defun org-roam-stack--undim-other-buffers ()
+  "undim all (non selected) stack buffers"
+  (interactive)
+  (--each (org-roam-stack--buffer-list-wo-current)
+    (org-roam-stack--undim-buffer it)))
 
 (defun org-roam-stack--dim-buffer (buffer)
+  "put a dim overlay on the visible part of the buffer"
   (with-current-buffer buffer
     (let* ((w (get-buffer-window buffer))
            (focus-overlay (make-overlay (window-start w) (window-end w))))
@@ -350,16 +363,9 @@ idx-a < idx-b!"
       (overlay-put focus-overlay 'org-roam-stack-dim t))))
 
 (defun org-roam-stack--undim-buffer (buffer)
+  "remove dim overlay of the given buffer"
   (with-current-buffer buffer
     (remove-overlays (point-min) (point-max) 'org-roam-stack-dim t)))
-
-(defun org-roam-stack--undim-other-buffers ()
-  "dim all (non selected) stack windows"
-  (interactive)
-  (let* ((buffer (current-buffer))
-         (list-without-current (--filter (not (equal buffer it)) org-roam-stack--buffer-list)))
-    (--each list-without-current
-      (org-roam-stack--undim-buffer it))))
 
 (defun org-roam-stack--protocol-open-file (info)
   (let ((file (plist-get info :file)))
