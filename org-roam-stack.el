@@ -89,19 +89,18 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
-    ('maximize (org-roam-stack--maximize-current-buffer)(recenter))
-    ('balance (org-roam-stack--balance-stack)(recenter))
-    (t nil)))
+    ('maximize (org-roam-stack--maximize-current-buffer))
+    ('balance (org-roam-stack--balance-stack))
+    (t nil))
+  (recenter)
+  (when org-roam-stack--focused
+    (org-roam-stack--buffer-change-hook)))
 
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
   "is the given buffer in the stack?"
   (or
    (null buffer)
-   (not (memq buffer org-roam-stack--buffer-list))
-   ;; (--none-p (string-equal (buffer-name buffer)
-   ;;                         (buffer-name it))
-   ;;           org-roam-stack--buffer-list)
-   ))
+   (not (memq buffer org-roam-stack--buffer-list))))
 
 (defun org-roam-stack--buffer-in-stack-p (buffer)
   (not (org-roam-stack--buffer-not-in-stack-p buffer)))
@@ -345,7 +344,8 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--dim-buffer (buffer)
   (with-current-buffer buffer
-    (let ((focus-overlay (make-overlay (point-min) (point-max))))
+    (let* ((w (get-buffer-window buffer))
+           (focus-overlay (make-overlay (window-start w) (window-end w))))
       (overlay-put focus-overlay 'face 'font-lock-comment-face)
       (overlay-put focus-overlay 'org-roam-stack-dim t))))
 
@@ -488,7 +488,6 @@ Group 2 contains the path.")
   (if org-roam-stack-mode
       (progn
         (org-roam-stack--register-open-file-protocol)
-        (add-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (when org-roam-stack--link-adjustments
           (org-roam-stack--register-additional-keywords))
@@ -504,7 +503,6 @@ Group 2 contains the path.")
           (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice)))
 
     (org-roam-stack--unregister-open-file-protocol)
-    (remove-hook 'buffer-list-update-hook #'org-roam-stack--buffer-change-hook)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
