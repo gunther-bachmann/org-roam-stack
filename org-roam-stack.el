@@ -57,6 +57,11 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
   :type 'boolean
   :group 'org-roam-stack)
 
+(defcustom org-roam-stack--open-ro nil
+  "open all org roam files read only"
+  :type 'boolean
+  :group 'org-roam-stack)
+
 (defcustom org-roam-stack--local-keybindings
   '(( "C-x C-k"         . org-roam-stack--remove-current-buffer-from-stack)
     ( "C-x k"           . org-roam-stack--remove-current-buffer-from-stack)
@@ -74,12 +79,19 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
     ( "C-x 3"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
     ( "C-x 4"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
     ( "C-x 5"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
+    ( "<return>"        . org-roam-stack--return-dwim) ;; make sure to open links even if in view mode
     )
   "key redefinitions to make sure window constellation of stack is not disrupted.
 is a list of pairs '(( KEY_BINDING . FUNCTION ) ...).
 e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   :type 'list
   :group 'org-roam-stack)
+
+(defun org-roam-stack--return-dwim ()
+  "execute return as defined in org mode map!"
+  (interactive)
+  (ignore-errors
+    (funcall (lookup-key org-mode-map (kbd "<RET>")))))
 
 (defcustom org-roam-stack--focused
   t
@@ -147,7 +159,9 @@ idx-a < idx-b!"
   "open the file and register key bindings and file open hooks"
   (find-file roam-file)
   (org-roam-stack--register-local-keybindings)
-  (org-roam-stack--register-org-roam-stack-find-file))
+  (org-roam-stack--register-org-roam-stack-find-file)
+  (when org-roam-stack--open-ro
+    (read-only-mode 1)))
 
 (defun org-roam-stack--open-file-below (roam-file)
   (org-roam-stack--open-in-stack roam-file 'below))
@@ -327,15 +341,16 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
-  (setq org-roam-stack--stack-height (frame-height))
-  (--dotimes 2 ;; until resize is stable
-    (let ((card-window-height (/ (- org-roam-stack--stack-height (cl-list-length org-roam-stack--buffer-list)) (cl-list-length org-roam-stack--buffer-list))))
-      (--each (-butlast (reverse org-roam-stack--buffer-list))
-        (let* ((its-window (get-buffer-window it))
-               (lines (window-height its-window))
-               (delta (- card-window-height lines)))
-          (window-resize (get-buffer-window it) delta))))))
-
+  (when org-roam-stack--buffer-list
+    (ignore-errors
+      (setq org-roam-stack--stack-height (frame-height))
+      (--dotimes 2 ;; until resize is stable
+        (let ((card-window-height (/ (- org-roam-stack--stack-height (cl-list-length org-roam-stack--buffer-list)) (cl-list-length org-roam-stack--buffer-list))))
+          (--each (-butlast (reverse org-roam-stack--buffer-list))
+            (let* ((its-window (get-buffer-window it))
+                   (lines (window-height its-window))
+                   (delta (- card-window-height lines)))
+              (window-resize (get-buffer-window it) delta))))))))
 
 (defun org-roam-stack--buffer-list-wo-current ()
   "get the list of stack buffers without the current buffer"
@@ -398,9 +413,11 @@ idx-a < idx-b!"
             (org-roam-stack--remove-buffer-from-list buffer)
             (apply orig-fun args)
             ;; check for still active window for the buffer
-            (when-let* ((re-buffer (get-file-buffer filename))
+            (if-let* ((re-buffer (get-file-buffer filename))
                         (re-win (get-buffer-window re-buffer)))
-              (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))))))
+                (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
+              (when (org-roam-stack--quick-in-stack-p)
+                (org-roam-stack--execute-buffer-open-resize-strategy))))))
     (apply orig-fun args)))
 
 (defun org-roam-stack--quick-in-stack-p ()
@@ -484,6 +501,14 @@ Group 2 contains the path.")
    org-roam-stack--font-lock-keyword-for-roam-link
    t))
 
+(defun org-roam-stack--view-quit-advice (orig-func &rest args)
+  "make sure that quitting view mode within org roam stack file, actually removes the stack!"
+  (if (org-roam-stack--quick-in-stack-p)
+      (progn
+        (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
+        (org-roam-stack--execute-buffer-open-resize-strategy))
+    (apply orig-func args)))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -495,6 +520,7 @@ Group 2 contains the path.")
       (progn
         (org-roam-stack--register-open-file-protocol)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
+        (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
         (when org-roam-stack--link-adjustments
           (org-roam-stack--register-additional-keywords))
         (when (functionp 'windmove-up)
@@ -510,6 +536,7 @@ Group 2 contains the path.")
 
     (org-roam-stack--unregister-open-file-protocol)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
+    (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
     (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
       (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
