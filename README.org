@@ -1,3 +1,37 @@
-#+title: ORG-ROAM-STACK
+#+title: org-roam-stack
 
 provides functions to keep org-roam notes visibly in a stack
+
+* General ideas
+
+  This package aims to keep all roam document buffers in a stack of windows. It provides functions to add (existing) roam documents to the
+  stack, navigate, remove or reorder them. It provides functions to maximize or balance the stack windows.
+
+  - stack :: ordered list of org roam documents visually organized from top to bottom
+
+  [[file:org-roam-stack.screenshot.three-cards.png][Screenshot with three cards]]
+
+* Rationale
+
+  Creating stacks is a method of eliciting, of discovering new information, new aspects of some existing concepts manifested in cards. The
+  idea combines ideas stemming from the zettelkasten method as well as experiences in building /bildstapel/ (picture stacks) in the area of
+  political iconography.
+
+  A stack of cards provides an additional perspective that could result in a new concept, an additional card. The stack could be interpreted
+  as an argument, each card adding a certain aspect to this argument. The facet each card adds is not explictly stated. However the order
+  and selection of the cards should carry this information. A stack could be interpreted as instantiations of a concept. The concept is an
+  emergent aspect of the stack.
+
+  This package strives to support this process.
+
+* open items
+** TODO make sure M-x f (open file) does not disrupt the stack
+** TODO provide a function that brings the stack in a consistent state
+   - e.g. analyse the current window setup and construct a stack accordingly
+     - close all buffers that are not displayed (and not changed)
+     - remove buffers visible but not part of the stack
+     - organize stack (left window lane)
+** TODO think about different visible window setups
+   - currently the window setup strategy is keeping the stack in a left lane
+   - this could also be changed to right, middle and multiple lanes
+** TODO think about saving stack, visual stack setup, restore stack, relating stacks to cards, creating cards from stacks
