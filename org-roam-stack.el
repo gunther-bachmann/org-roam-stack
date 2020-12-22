@@ -65,6 +65,8 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
 (defcustom org-roam-stack--local-keybindings
   '(( "C-x C-k"         . org-roam-stack--remove-current-buffer-from-stack)
     ( "C-x k"           . org-roam-stack--remove-current-buffer-from-stack)
+    ( "C-x C-f"         . org-roam-stack--find-file)
+    ( "s-f"             . org-roam-stack--buffer-or-recent)
     ( "<S-s-return>"    . org-roam-stack--interactive-maximize-current-buffer)
     ( "<C-s-return>"    . org-roam-stack--interactive-maximize-current-buffer)
     ( "<S-s-left>"      . org-roam-stack--void) ;; unbind the given merge behaviour
@@ -86,6 +88,21 @@ is a list of pairs '(( KEY_BINDING . FUNCTION ) ...).
 e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   :type 'list
   :group 'org-roam-stack)
+
+(defun org-roam-stack--find-file ()
+  (interactive)
+  (when-let ((file (counsel--find-file-1 "Find file: " nil
+                                         nil
+                                         'counsel-find-file)))
+    (org-roam-stack--open-any-file file)))
+
+(defun org-roam-stack--buffer-or-recent ()
+  ""
+  (interactive)
+  (when-let ((file (ivy-read "Buffer File or Recentf: " (counsel-buffer-or-recentf-candidates)
+                             :require-match t
+                             :caller 'counsel-buffer-or-recentf)))
+    (org-roam-stack--open-any-file file)))
 
 (defun org-roam-stack--return-dwim ()
   "execute return as defined in org mode map!"
@@ -185,6 +202,12 @@ idx-a < idx-b!"
     (when (not (windmove-find-other-window 'right))
       (split-window-horizontally))))
 
+(defun org-roam-stack--open-any-file (file)
+  (if (org-roam-stack--is-roam-file-p file)
+      (org-roam-stack--open file)
+    (windmove-right)
+    (find-file file)))
+
 (defun org-roam-stack--open (roam-file)
   "open the given file in stack"
   (org-roam-stack--enter-stack-from-outside roam-file)
@@ -196,7 +219,7 @@ idx-a < idx-b!"
 (defun org-roam-stack--register-org-roam-stack-find-file ()
   "ensure that org roam stack open is used as find file"
   (setq-local org-link-frame-setup
-              (cons '(file . org-roam-stack--open)
+              (cons '(file . org-roam-stack--open-any-file)
                     (--remove (equal 'file (car it)) org-link-frame-setup))))
 
 (defun org-roam-stack--move-buffer-down ()
@@ -384,7 +407,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--protocol-open-file (info)
   (let ((file (plist-get info :file)))
-    (org-roam-stack--open file)))
+    (org-roam-stack--open-any-file file)))
 
 (defun org-roam-stack--register-open-file-protocol ()
   (setq org-protocol-protocol-alist (--remove (string-equal "roam-file" (plist-get (cdr it) :protocol)) org-protocol-protocol-alist))
@@ -414,8 +437,9 @@ idx-a < idx-b!"
             (apply orig-fun args)
             ;; check for still active window for the buffer
             (if-let* ((re-buffer (get-file-buffer filename))
-                        (re-win (get-buffer-window re-buffer)))
+                      (re-win (get-buffer-window re-buffer)))
                 (setq org-roam-stack--buffer-list (-insert-at idx-before re-buffer org-roam-stack--buffer-list))
+              (ignore-errors (kill-buffer-if-not-modified buffer))
               (when (org-roam-stack--quick-in-stack-p)
                 (org-roam-stack--execute-buffer-open-resize-strategy))))))
     (apply orig-fun args)))
@@ -452,19 +476,23 @@ idx-a < idx-b!"
 Group 1 contains the link type.
 Group 2 contains the path.")
 
+(defun org-roam-stack--is-roam-file-p (file-name)
+  "is the given file part of the org roam repo"
+  (string-prefix-p org-roam-directory (expand-file-name file-name)))
+
 ;; thanks to the great org-ref package
 (defun org-roam-stack--match-roam-file-link (&optional limit)
   "Search forward to next link up to LIMIT."
   (when (and (derived-mode-p 'org-mode)
-           (re-search-forward org-roam-stack--roam-link-re limit t)
-           ;; make sure we are not in a comment
-           (save-excursion
-             (beginning-of-line)
-             (not (looking-at "# "))))
+             (re-search-forward org-roam-stack--roam-link-re limit t)
+             ;; make sure we are not in a comment
+             (save-excursion
+               (beginning-of-line)
+               (not (looking-at "# "))))
     (forward-char -2)
     (let ((this-link (org-element-context)))
       (if (and (-contains? '("file" "deft") (org-element-property :type this-link))
-             (string-prefix-p org-roam-directory (expand-file-name (org-element-property :path this-link))))
+               (org-roam-stack--is-roam-file-p (org-element-property :path this-link)))
           (progn
             ;; (add-text-properties
             ;;  (org-element-property :begin this-link)

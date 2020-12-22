@@ -25,7 +25,6 @@ provides functions to keep org-roam notes visibly in a stack
   This package strives to support this process.
 
 * open items
-** TODO make sure M-x f (open file) does not disrupt the stack
 ** TODO provide a function that brings the stack in a consistent state
    - e.g. analyse the current window setup and construct a stack accordingly
      - close all buffers that are not displayed (and not changed)
@@ -35,3 +34,7 @@ provides functions to keep org-roam notes visibly in a stack
    - currently the window setup strategy is keeping the stack in a left lane
    - this could also be changed to right, middle and multiple lanes
 ** TODO think about saving stack, visual stack setup, restore stack, relating stacks to cards, creating cards from stacks
+** DONE fix bug that opens any link into the stack, even though the document is not part of org roam
+   - State "DONE"       from "TODO"       [2020-12-22 Tue 20:38]
+** DONE make sure C-x C-f (find file) does not disrupt the stack
+   - State "DONE"       from "TODO"       [2020-12-22 Tue 20:53]
