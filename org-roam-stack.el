@@ -89,6 +89,9 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   :type 'list
   :group 'org-roam-stack)
 
+(defvar org-roam-stack--current-card nil
+  "card, currently/last viewed")
+
 (defun org-roam-stack--find-file ()
   (interactive)
   (when-let ((file (counsel--find-file-1 "Find file: " nil
@@ -249,9 +252,11 @@ idx-a < idx-b!"
     (org-roam-stack--execute-buffer-open-resize-strategy)))
 
 (defun org-roam-stack--buffer-change-hook ()
-  (when (and org-roam-stack--focused (org-roam-stack--buffer-in-stack-p (current-buffer)))
-    (org-roam-stack--dim-other-buffers)
-    (org-roam-stack--undim-buffer (current-buffer))))
+  (when (org-roam-stack--quick-in-stack-p)
+    (when org-roam-stack--focused
+      (org-roam-stack--dim-other-buffers)
+      (org-roam-stack--undim-buffer (current-buffer)))
+    (setq org-roam-stack--current-card (current-buffer))))
 
 (defun org-roam-stack--register-local-keybindings ()
   (use-local-map (copy-keymap (current-local-map)))
@@ -450,9 +455,15 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--windmove-advice (orig-func &rest args)
   "do resize strategy if using wind move commands"
-  (apply orig-func args)
-  (when (org-roam-stack--quick-in-stack-p)
-    (org-roam-stack--execute-buffer-open-resize-strategy)))
+  (let ((should-open-previous-card (and (not (org-roam-stack--quick-in-stack-p))
+                                      org-roam-stack--current-card)))
+    (apply orig-func args)
+    (when (org-roam-stack--quick-in-stack-p)
+      (when (and should-open-previous-card
+               org-roam-stack--current-card
+               (org-roam-stack--buffer-in-stack-p org-roam-stack--current-card))
+        (select-window (get-buffer-window org-roam-stack--current-card)))
+      (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 ;; --------------------------------------------------------------------------------
 
