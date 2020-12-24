@@ -537,6 +537,35 @@ Group 2 contains the path.")
         (org-roam-stack--execute-buffer-open-resize-strategy))
     (apply orig-func args)))
 
+
+(defun org-roam-stack--browse-url-advice (orig-func &rest args)
+  "make sure browser opened is in rightmost window"
+  (when (org-roam-stack--quick-in-stack-p)
+    (windmove-right))
+  (apply orig-func args))
+
+(defun org-roam-stack--register-browse-url-advice ()
+  "install advice around browse url"
+  (if (listp browse-url-browser-function)
+      (--each browse-url-browser-function
+        (advice-add (cdr it) :around #'org-roam-stack--browse-url-advice))
+    (advice-add browse-url-browser-function :around #'org-roam-stack--browse-url-advice))
+  (when (and (version< emacs-version "28")
+           (listp browse-url-handlers))
+    (--each browse-url-handlers
+        (advice-add (cdr it) :around #'org-roam-stack--browse-url-advice))))
+
+(defun org-roam-stack--unregister-browse-url-advice ()
+  "remove advice around browse url"
+  (if (listp browse-url-browser-function)
+      (--each browse-url-browser-function
+        (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))
+    (advice-remove browse-url-browser-function #'org-roam-stack--browse-url-advice))
+  (when (and (version< emacs-version "28")
+           (listp browse-url-handlers))
+    (--each browse-url-handlers
+        (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -549,6 +578,7 @@ Group 2 contains the path.")
         (org-roam-stack--register-open-file-protocol)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
+        (org-roam-stack--register-browse-url-advice)
         (when org-roam-stack--link-adjustments
           (org-roam-stack--register-additional-keywords))
         (when (functionp 'windmove-up)
@@ -565,6 +595,7 @@ Group 2 contains the path.")
     (org-roam-stack--unregister-open-file-protocol)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
+    (org-roam-stack--unregister-browse-url-advice)
     (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
       (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
