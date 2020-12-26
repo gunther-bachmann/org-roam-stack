@@ -58,6 +58,12 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack can
   :type 'boolean
   :group 'org-roam-stack)
 
+(defcustom org-roam-stack--focused
+  t
+  "stay focused, dim other cards in the stack"
+  :type 'boolean
+  :group 'org-roam-stack)
+
 (defcustom org-roam-stack--open-ro nil
   "open all org roam files read only"
   :type 'boolean
@@ -93,6 +99,25 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
 (defvar org-roam-stack--current-card nil
   "card, currently/last viewed")
 
+(defcustom org-roam-stack--roam-link-color
+  "pale goldenrod"
+  "Color of roam file links."
+  :type 'string
+  :group 'org-roam-stack)
+
+(defface org-roam-stack--roam-link-face
+  `((t (:inherit org-link :foreground ,org-roam-stack--roam-link-color)))
+  "Face for roam links in org-roam-stack.")
+
+(defvar org-roam-stack--roam-link-re
+  "\\(file\\|deft\\):\\([a-zA-Z0-9_:\\./-]+,?\\)+"
+  "Regexp for roam file links.
+Group 1 contains the link type.
+Group 2 contains the path.")
+
+(defvar org-roam-stack--font-lock-keyword-for-roam-link
+  '((org-roam-stack--match-roam-file-link (0  'org-roam-stack--roam-link-face t))))
+
 (defun org-roam-stack--find-file ()
   (interactive)
   (when-let ((file (counsel--find-file-1 "Find file: " nil
@@ -113,12 +138,6 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   (interactive)
   (ignore-errors
     (funcall (lookup-key org-mode-map (kbd "<RET>")))))
-
-(defcustom org-roam-stack--focused
-  t
-  "stay focused, dim other cards in the stack"
-  :type 'boolean
-  :group 'org-roam-stack)
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
@@ -231,29 +250,31 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--move-buffer-down ()
   (interactive)
-  (when-let* ((buffer-below (org-roam-stack--get-buffer-below-existing (current-buffer)))
-              (buffer-name-below (buffer-file-name buffer-below))
-              (buffer-below-idx (-elem-index buffer-below org-roam-stack--buffer-list))
-              (c-buffer-name (buffer-file-name (current-buffer)))
-              (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
-    (find-file buffer-name-below)
-    (other-window 1)
-    (find-file c-buffer-name)
-    (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list buffer-below-idx c-buffer-idx org-roam-stack--buffer-list))
-    (org-roam-stack--execute-buffer-open-resize-strategy)))
+  (when (org-roam-stack--quick-in-stack-p)
+    (when-let* ((buffer-below (org-roam-stack--get-buffer-below-existing (current-buffer)))
+                (buffer-name-below (buffer-file-name buffer-below))
+                (buffer-below-idx (-elem-index buffer-below org-roam-stack--buffer-list))
+                (c-buffer-name (buffer-file-name (current-buffer)))
+                (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
+      (find-file buffer-name-below)
+      (other-window 1)
+      (find-file c-buffer-name)
+      (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list buffer-below-idx c-buffer-idx org-roam-stack--buffer-list))
+      (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 (defun org-roam-stack--move-buffer-up ()
   (interactive)
-  (when-let* ((buffer-up (org-roam-stack--get-buffer-above-existing (current-buffer)))
-              (buffer-up-name (buffer-file-name buffer-up))
-              (buffer-up-idx (-elem-index buffer-up org-roam-stack--buffer-list))
-              (c-buffer-name (buffer-file-name (current-buffer)))
-              (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
-    (find-file buffer-up-name)
-    (other-window -1)
-    (find-file c-buffer-name)
-    (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list c-buffer-idx buffer-up-idx org-roam-stack--buffer-list))
-    (org-roam-stack--execute-buffer-open-resize-strategy)))
+  (when (org-roam-stack--quick-in-stack-p)
+    (when-let* ((buffer-up (org-roam-stack--get-buffer-above-existing (current-buffer)))
+                (buffer-up-name (buffer-file-name buffer-up))
+                (buffer-up-idx (-elem-index buffer-up org-roam-stack--buffer-list))
+                (c-buffer-name (buffer-file-name (current-buffer)))
+                (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
+      (find-file buffer-up-name)
+      (other-window -1)
+      (find-file c-buffer-name)
+      (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list c-buffer-idx buffer-up-idx org-roam-stack--buffer-list))
+      (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 (defun org-roam-stack--buffer-change-hook ()
   (when (org-roam-stack--quick-in-stack-p)
@@ -299,23 +320,25 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--merge-current-with-above ()
   (interactive)
-  (let ((buffer (org-roam-stack--get-buffer-above-existing (current-buffer))))
-    (if (buffer-modified-p buffer)
-        (message (format "cannot remove modified card: %s" (buffer-name buffer)))
-      (if-let (upper-window (windmove-find-other-window 'up))
-          (when (equal upper-window (get-buffer-window buffer))
-            (org-roam-stack--remove-buffer-from-view-and-stack buffer)
-            (org-roam-stack--execute-buffer-open-resize-strategy))))))
+  (when (org-roam-stack--quick-in-stack-p)
+    (let ((buffer (org-roam-stack--get-buffer-above-existing (current-buffer))))
+      (if (buffer-modified-p buffer)
+          (message (format "cannot remove modified card: %s" (buffer-name buffer)))
+        (if-let (upper-window (windmove-find-other-window 'up))
+            (when (equal upper-window (get-buffer-window buffer))
+              (org-roam-stack--remove-buffer-from-view-and-stack buffer)
+              (org-roam-stack--execute-buffer-open-resize-strategy)))))))
 
 (defun org-roam-stack--merge-current-with-below ()
   (interactive)
-  (let ((buffer (org-roam-stack--get-buffer-below-existing (current-buffer))))
-    (if (buffer-modified-p buffer)
-        (message (format "cannot remove modified card: %s" (buffer-name buffer)))
-      (if-let (lower-window (windmove-find-other-window 'down))
-          (when (equal lower-window (get-buffer-window buffer))
-            (org-roam-stack--remove-buffer-from-view-and-stack buffer)
-            (org-roam-stack--execute-buffer-open-resize-strategy))))))
+  (when (org-roam-stack--quick-in-stack-p)
+    (let ((buffer (org-roam-stack--get-buffer-below-existing (current-buffer))))
+      (if (buffer-modified-p buffer)
+          (message (format "cannot remove modified card: %s" (buffer-name buffer)))
+        (if-let (lower-window (windmove-find-other-window 'down))
+            (when (equal lower-window (get-buffer-window buffer))
+              (org-roam-stack--remove-buffer-from-view-and-stack buffer)
+              (org-roam-stack--execute-buffer-open-resize-strategy)))))))
 
 (defun org-roam-stack--void ()
   "do nothing"
@@ -343,17 +366,19 @@ idx-a < idx-b!"
 (defun org-roam-stack--remove-current-buffer-from-stack (_)
   "remove current buffer from stack, making space for others"
   (interactive "P")
-  (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
-  (org-roam-stack--execute-buffer-open-resize-strategy))
+  (when (org-roam-stack--quick-in-stack-p)
+      (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
+      (org-roam-stack--execute-buffer-open-resize-strategy)))
 
 (defun org-roam-stack--interactive-maximize-current-buffer ()
   "maximize buffer and keep this balancing choice for next resize actions"
   (interactive)
-  (setq org-roam-stack--stack-height (frame-height))
-  (if (eq org-roam-stack--buffer-open-resize-strategy 'maximize)
-      (setq org-roam-stack--buffer-open-resize-strategy nil)
-    (setq org-roam-stack--buffer-open-resize-strategy 'maximize))
-  (org-roam-stack--maximize-current-buffer))
+  (when (org-roam-stack--quick-in-stack-p)
+    (setq org-roam-stack--stack-height (frame-height))
+    (if (eq org-roam-stack--buffer-open-resize-strategy 'maximize)
+        (setq org-roam-stack--buffer-open-resize-strategy nil)
+      (setq org-roam-stack--buffer-open-resize-strategy 'maximize))
+    (org-roam-stack--maximize-current-buffer)))
 
 (defun org-roam-stack--maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
@@ -366,10 +391,11 @@ idx-a < idx-b!"
 (defun org-roam-stack--interactive-balance-stack ()
   "balance stack and keep this balancing choice for next resize actions"
   (interactive)
-  (if (eq org-roam-stack--buffer-open-resize-strategy 'balance)
-      (setq org-roam-stack--buffer-open-resize-strategy nil)
-    (setq org-roam-stack--buffer-open-resize-strategy 'balance))
-  (org-roam-stack--balance-stack))
+  (when (org-roam-stack--quick-in-stack-p)
+    (if (eq org-roam-stack--buffer-open-resize-strategy 'balance)
+        (setq org-roam-stack--buffer-open-resize-strategy nil)
+      (setq org-roam-stack--buffer-open-resize-strategy 'balance))
+    (org-roam-stack--balance-stack)))
 
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
@@ -471,25 +497,9 @@ idx-a < idx-b!"
 
 ;; --------------------------------------------------------------------------------
 
-(defcustom org-roam-stack--roam-link-color
-  "pale goldenrod"
-  "Color of roam file links."
-  :type 'string
-  :group 'org-roam-stack)
-
-(defface org-roam-stack--roam-link-face
-  `((t (:inherit org-link :foreground ,org-roam-stack--roam-link-color)))
-  "Face for roam links in org-roam-stack.")
-
 (defun org-roam-stack--get-roam-link-info-at-point ()
   "get information about the roam link at point"
   "unknown")
-
-(defvar org-roam-stack--roam-link-re
-  "\\(file\\|deft\\):\\([a-zA-Z0-9_:\\./-]+,?\\)+"
-  "Regexp for roam file links.
-Group 1 contains the link type.
-Group 2 contains the path.")
 
 (defun org-roam-stack--is-roam-file-p (file-name)
   "is the given file part of the org roam repo"
@@ -530,9 +540,6 @@ Group 2 contains the path.")
             (goto-char (org-element-property :end this-link)))
         ;; Must be a false match.
         (org-roam-stack--match-roam-file-link limit)))))
-
-(defvar org-roam-stack--font-lock-keyword-for-roam-link
-  '((org-roam-stack--match-roam-file-link (0  'org-roam-stack--roam-link-face t))))
 
 (defun org-roam-stack--unregister-additional-keywords ()
   (font-lock-remove-keywords 'org-mode org-roam-stack--font-lock-keyword-for-roam-link))
