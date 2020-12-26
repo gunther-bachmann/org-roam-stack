@@ -35,6 +35,7 @@
 (require 'ol)
 (require 'org-protocol)
 (require 'notdeft)
+(require 'counsel)
 
 (defgroup org-roam-stack nil
   "organize org roam cards in a stack"
@@ -133,6 +134,9 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   (or
    (null buffer)
    (not (memq buffer org-roam-stack--buffer-list))))
+
+(defun org-roam-stack--file-in-stack (file)
+  (--first (string-equal (buffer-file-name it) file) org-roam-stack--buffer-list))
 
 (defun org-roam-stack--buffer-in-stack-p (buffer)
   (not (org-roam-stack--buffer-not-in-stack-p buffer)))
@@ -577,6 +581,24 @@ Group 2 contains the path.")
     (--each browse-url-handlers
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
 
+(defun org-roam-stack--cleanup-kill-buffers ()
+  (setq org-roam-stack--buffer-list (--filter (buffer-live-p it) org-roam-stack--buffer-list)))
+
+(defun org-roam-stack--restore-stack-view ()
+  "restore view of org roam stack"
+  (interactive)
+  (org-roam-stack--cleanup-kill-buffers)
+  (notdeft nil)
+  (delete-other-windows)
+  (let ((files (--map (buffer-file-name it) org-roam-stack--buffer-list))
+        (file (when org-roam-stack--current-card (buffer-file-name org-roam-stack--current-card))))
+    (--each org-roam-stack--buffer-list (kill-buffer it))
+    (setq org-roam-stack--buffer-list nil)
+    (--each (reverse files) (org-roam-stack--open it))
+    (when (and file
+             (org-roam-stack--file-in-stack file))
+      (org-roam-stack--open file))))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -601,7 +623,8 @@ Group 2 contains the path.")
           (advice-add 'notdeft-find-file :around 'org-roam-stack--notdeft-find-file-advice))
         ;; make sure that starting the org roam server does not place another :roam-file entry!
         (when (functionp 'org-roam-server-mode)
-          (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice)))
+          (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
+        (bind-key "s-d" #'org-roam-stack--restore-stack-view))
 
     (org-roam-stack--unregister-open-file-protocol)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
@@ -614,6 +637,7 @@ Group 2 contains the path.")
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
     (when (functionp 'notdeft-find-file)
-      (advice-remove 'notdeft-find-file 'org-roam-stack--notdeft-find-file-advice))))
+      (advice-remove 'notdeft-find-file 'org-roam-stack--notdeft-find-file-advice))
+    (bind-key "s-d" #'notdeft)))
 
 (provide 'org-roam-stack)
