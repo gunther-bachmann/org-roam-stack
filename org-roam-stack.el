@@ -617,6 +617,7 @@ idx-a < idx-b!"
   (if org-roam-stack-mode
       (progn
         (org-roam-stack--register-open-file-protocol)
+        (setq org-roam-find-file-function #'org-roam-stack--open-any-file)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
         (org-roam-stack--register-browse-url-advice)
@@ -635,6 +636,7 @@ idx-a < idx-b!"
         (bind-key "s-d" #'org-roam-stack--restore-stack-view))
 
     (org-roam-stack--unregister-open-file-protocol)
+    (setq org-roam-find-file-function nil)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
     (org-roam-stack--unregister-browse-url-advice)
