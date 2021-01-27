@@ -581,7 +581,8 @@ idx-a < idx-b!"
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))
     (advice-remove browse-url-browser-function #'org-roam-stack--browse-url-advice))
   (when (and (version< emacs-version "28")
-           (listp browse-url-handlers))
+             (boundp 'browse-url-handlers)
+             (listp browse-url-handlers))
     (--each browse-url-handlers
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
 
