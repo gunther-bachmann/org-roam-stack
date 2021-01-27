@@ -573,6 +573,7 @@ idx-a < idx-b!"
         (advice-add (cdr it) :around #'org-roam-stack--browse-url-advice))
     (advice-add browse-url-browser-function :around #'org-roam-stack--browse-url-advice))
   (when (and (version< emacs-version "28")
+           (boundp 'browse-url-handlers)
            (listp browse-url-handlers))
     (--each browse-url-handlers
         (advice-add (cdr it) :around #'org-roam-stack--browse-url-advice))))
