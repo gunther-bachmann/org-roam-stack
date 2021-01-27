@@ -48,7 +48,7 @@
   "list of buffers that form the stack.
 they are ordered from bottom to top => adding a buffer to the bottom of the stack puts it at the head of this list.
 this list is kept in sync with the visual display of the stack.
-if by some commands the list gets out of sync, org-roam-stack--restore-stack can be used to build up the visual according the this list")
+if by some commands the list gets out of sync, org-roam-stack--restore-stack-view can be used to build up the visual according the this list")
 
 (defvar org-roam-stack--buffer-open-resize-strategy 'maximize
   "either 'maximize or 'balance")
@@ -212,17 +212,26 @@ idx-a < idx-b!"
 (defun org-roam-stack--open-file-above (roam-file)
   (org-roam-stack--open-in-stack roam-file 'above))
 
+(defun org-roam-stack--get-stack-window-for (roam-file-or-buffer)
+  "get the window within the stack (if existent) of the given roam file or buffer"
+  (let ((file-buffer (if (bufferp roam-file-or-buffer)
+                         roam-file-or-buffer
+                       (get-file-buffer roam-file-or-buffer))))
+    (when (and (org-roam-stack--buffer-in-stack-p file-buffer)
+             (window-valid-p (get-buffer-window file-buffer)))
+      (get-buffer-window file-buffer))))
+
 (defun org-roam-stack--enter-stack-from-outside (roam-file)
   "strategy to ensure stack layout if not within the stack currently"
   (if org-roam-stack--buffer-list
-      (if (org-roam-stack--buffer-in-stack-p (get-file-buffer roam-file))
-          (select-window (get-buffer-window (get-file-buffer roam-file)))
-        (when-let ((bwin (get-buffer-window (car org-roam-stack--buffer-list))))
-          (when (window-valid-p bwin)
-            (select-window bwin)
-            (enlarge-window 5) ;; make sure it can be split
-            (split-window-below)
-            (other-window 1))))
+      (if-let ((stack-window (org-roam-stack--get-stack-window-for roam-file)))
+          (select-window stack-window)
+        (when-let ((bottom-most-stack-window (org-roam-stack--get-stack-window-for (car org-roam-stack--buffer-list))))
+          (select-window bottom-most-stack-window)
+          (ignore-errors
+            (enlarge-window 5)) ;; make sure it can be split, ignore errors when sole window
+          (split-window-below)
+          (other-window 1)))
     (when (windmove-find-other-window 'left)
       (windmove-left))
     (when (not (windmove-find-other-window 'right))
@@ -287,20 +296,6 @@ idx-a < idx-b!"
   (use-local-map (copy-keymap (current-local-map)))
   (--each org-roam-stack--local-keybindings
     (local-set-key (kbd (car it)) (cdr it))))
-
-(defun org-roam-stack--restore-stack ()
-  (interactive)
-  (when org-roam-stack--buffer-list
-    (delete-other-windows)
-    (split-window-horizontally)
-    (find-file (buffer-file-name (car (last org-roam-stack--buffer-list))))
-    (--each (-drop 1 (reverse org-roam-stack--buffer-list))
-      (ignore-errors
-        (enlarge-window 10) ;; ensure split is possible
-        (split-window-vertically)
-        (other-window 1)
-        (find-file (buffer-file-name it))))
-    (org-roam-stack--balance-stack)))
 
 (defun org-roam-stack--report ()
   (message (mapconcat 'identity (--map (buffer-name it) org-roam-stack--buffer-list) ", ")))
@@ -492,7 +487,8 @@ idx-a < idx-b!"
       (when (and should-open-previous-card
                org-roam-stack--current-card
                (org-roam-stack--buffer-in-stack-p org-roam-stack--current-card))
-        (select-window (get-buffer-window org-roam-stack--current-card)))
+        (when-let ((sel-win (get-buffer-window org-roam-stack--current-card)))
+          (select-window sel-win)))
       (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 ;; --------------------------------------------------------------------------------
@@ -590,19 +586,24 @@ idx-a < idx-b!"
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
 
 (defun org-roam-stack--cleanup-kill-buffers ()
-  (setq org-roam-stack--buffer-list (--filter (buffer-live-p it) org-roam-stack--buffer-list)))
+  "remove buffers from org-roam-stack--buffer-list that are not live any more"
+  (setq org-roam-stack--buffer-list (--filter (and (buffer-live-p it) (window-live-p (get-buffer-window it))) org-roam-stack--buffer-list)))
 
 (defun org-roam-stack--restore-stack-view ()
   "restore view of org roam stack"
   (interactive)
   (org-roam-stack--cleanup-kill-buffers)
-  (notdeft nil)
-  (delete-other-windows)
   (let ((files (--map (buffer-file-name it) org-roam-stack--buffer-list))
         (file (when org-roam-stack--current-card (buffer-file-name org-roam-stack--current-card))))
-    (--each org-roam-stack--buffer-list (kill-buffer it))
-    (setq org-roam-stack--buffer-list nil)
-    (--each (reverse files) (org-roam-stack--open it))
+    (--each (window-list (selected-frame))
+      (when (with-selected-window it
+              (and (stringp mode-name)
+                 (s-equals? "Org" mode-name )
+                 (not (org-roam-stack--file-in-stack (buffer-file-name (window-buffer it))))))
+        (delete-window it)))
+    (when (not (--first (s-equals? "NotDeft" (with-selected-window it (if (stringp mode-name) mode-name "")))  (window-list (selected-frame))))
+      (notdeft nil))
+    (--each (reverse files) (org-roam-stack--file-in-stack it))
     (when (and file
              (org-roam-stack--file-in-stack file))
       (org-roam-stack--open file))))
@@ -617,6 +618,7 @@ idx-a < idx-b!"
   (if org-roam-stack-mode
       (progn
         (org-roam-stack--register-open-file-protocol)
+        (setq org-roam-find-file-function #'org-roam-stack--open-any-file)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
         (org-roam-stack--register-browse-url-advice)
@@ -635,6 +637,7 @@ idx-a < idx-b!"
         (bind-key "s-d" #'org-roam-stack--restore-stack-view))
 
     (org-roam-stack--unregister-open-file-protocol)
+    (setq org-roam-find-file-function nil)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
     (org-roam-stack--unregister-browse-url-advice)
