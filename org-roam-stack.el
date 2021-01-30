@@ -137,7 +137,9 @@ Group 2 contains the path.")
   "execute return as defined in org mode map!"
   (interactive)
   (ignore-errors
-    (funcall (lookup-key org-mode-map (kbd "<RET>")))))
+    (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+    (funcall (lookup-key org-mode-map (kbd "<RET>")))
+    (advice-add 'find-file :around #'org-roam-stack--find-file-advice)))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
@@ -586,6 +588,15 @@ idx-a < idx-b!"
     (--each browse-url-handlers
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
 
+(defun org-roam-stack--find-file-advice (orig-func &rest args)
+  "find file on org roam file will use other open file"
+  (if (org-roam-stack--is-roam-file-p (car args))
+      (progn
+        (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+        (org-roam-stack--open (car args))
+        (advice-add 'find-file :around #'org-roam-stack--find-file-advice))
+    (apply orig-func args)))
+
 (defun org-roam-stack--cleanup-kill-buffers ()
   "remove buffers from org-roam-stack--buffer-list that are not live any more"
   (setq org-roam-stack--buffer-list (--filter (and (buffer-live-p it) (window-live-p (get-buffer-window it))) org-roam-stack--buffer-list)))
@@ -619,10 +630,8 @@ idx-a < idx-b!"
   (if org-roam-stack-mode
       (progn
         (org-roam-stack--register-open-file-protocol)
-        (setq org-roam-find-file-function #'org-roam-stack--open-any-file)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
-        (org-roam-stack--register-browse-url-advice)
         (when org-roam-stack--link-adjustments
           (org-roam-stack--register-additional-keywords))
         (when (functionp 'windmove-up)
@@ -630,26 +639,24 @@ idx-a < idx-b!"
           (advice-add 'windmove-right :around #'org-roam-stack--windmove-advice)
           (advice-add 'windmove-left :around #'org-roam-stack--windmove-advice)
           (advice-add 'windmove-down :around #'org-roam-stack--windmove-advice))
-        (when (functionp 'notdeft-find-file)
-          (advice-add 'notdeft-find-file :around 'org-roam-stack--notdeft-find-file-advice))
         ;; make sure that starting the org roam server does not place another :roam-file entry!
         (when (functionp 'org-roam-server-mode)
           (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
-        (bind-key "s-d" #'org-roam-stack--restore-stack-view))
+        (bind-key "s-d" #'org-roam-stack--restore-stack-view)
+        (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
+        (setq org-pretty-entities t)
+        (setq org-pretty-entities-include-sub-superscripts t))
 
     (org-roam-stack--unregister-open-file-protocol)
-    (setq org-roam-find-file-function nil)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
-    (org-roam-stack--unregister-browse-url-advice)
     (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
       (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-right #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
-    (when (functionp 'notdeft-find-file)
-      (advice-remove 'notdeft-find-file 'org-roam-stack--notdeft-find-file-advice))
-    (bind-key "s-d" #'notdeft)))
+    (bind-key "s-d" #'notdeft)
+    (advice-remove 'find-file #'org-roam-stack--find-file-advice)))
 
 (provide 'org-roam-stack)
