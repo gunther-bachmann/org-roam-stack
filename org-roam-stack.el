@@ -41,6 +41,10 @@
   "organize org roam cards in a stack"
   :group 'org-roam)
 
+(defface org-roam-stack-inactive-face '((t :slant italic :foreground "DimGray"))
+  "Face used to mark inactive buffers"
+  :group 'font-lock-faces)
+
 (defvar org-roam-stack--stack-height (frame-height)
   "height of the stack used for balance window calculations")
 
@@ -429,7 +433,7 @@ idx-a < idx-b!"
   (with-current-buffer buffer
     (let* ((w (get-buffer-window buffer))
            (focus-overlay (make-overlay (window-start w) (window-end w))))
-      (overlay-put focus-overlay 'face 'font-lock-comment-face)
+      (overlay-put focus-overlay 'face 'org-roam-stack-inactive-face)
       (overlay-put focus-overlay 'org-roam-stack-dim t))))
 
 (defun org-roam-stack--undim-buffer (buffer)
