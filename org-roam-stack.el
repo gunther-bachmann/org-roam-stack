@@ -516,7 +516,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--is-roam-file-p (file-name)
   "is the given file part of the org roam repo"
-  (string-prefix-p org-roam-directory (expand-file-name file-name)))
+  (and file-name (string-prefix-p org-roam-directory (expand-file-name file-name))))
 
 ;; thanks to the great org-ref package
 (defun org-roam-stack--match-roam-file-link (&optional limit)
