@@ -114,7 +114,7 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   "Face for roam links in org-roam-stack.")
 
 (defvar org-roam-stack--roam-link-re
-  "\\(file\\|deft\\):\\([a-zA-Z0-9_:\\./-]+,?\\)+"
+  "\\(file\\|deft\\|id\\):\\([a-zA-Z0-9_:\\./-]+,?\\)+"
   "Regexp for roam file links.
 Group 1 contains the link type.
 Group 2 contains the path.")
@@ -142,7 +142,18 @@ Group 2 contains the path.")
   (interactive)
   (ignore-errors
     (advice-remove 'find-file #'org-roam-stack--find-file-advice)
-    (funcall (lookup-key org-mode-map (kbd "<RET>")))
+    (let* ((context (org-element-context))
+         (type (org-element-property :type context))
+         (id (org-element-property :path context)))
+    (if (string= type "id")
+      (let ((node (org-roam-populate (org-roam-node-create :id id))))
+        (cond
+         ((org-roam-node-file node)
+          (org-mark-ring-push)
+          (org-roam-stack--open (org-roam-node-file node))
+          t)
+         (t nil)))
+      (funcall (lookup-key org-mode-map (kbd "<RET>")))))
     (advice-add 'find-file :around #'org-roam-stack--find-file-advice)))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
@@ -518,8 +529,9 @@ idx-a < idx-b!"
                (not (looking-at "# "))))
     (forward-char -2)
     (let ((this-link (org-element-context)))
-      (if (and (-contains? '("file" "deft") (org-element-property :type this-link))
-               (org-roam-stack--is-roam-file-p (org-element-property :path this-link)))
+      (if (and (-contains? '("file" "deft" "id") (org-element-property :type this-link))
+             (or (org-roam-stack--is-roam-file-p (org-element-property :path this-link))
+                (org-roam-stack--is-roam-file-p (org-roam-node-file (org-roam-node-create :id (org-element-property :path this-link))))))
           (progn
             ;; (add-text-properties
             ;;  (org-element-property :begin this-link)
