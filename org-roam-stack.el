@@ -609,8 +609,10 @@ idx-a < idx-b!"
   (if (org-roam-stack--is-roam-file-p (car args))
       (progn
         (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+        (advice-remove 'find-file-noselect  #'org-roam-stack--find-file-advice)
         (org-roam-stack--open (car args))
-        (advice-add 'find-file :around #'org-roam-stack--find-file-advice))
+        (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
+        (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice))
     (apply orig-func args)))
 
 (defun org-roam-stack--cleanup-kill-buffers ()
@@ -660,6 +662,7 @@ idx-a < idx-b!"
           (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
         (bind-key "s-d" #'org-roam-stack--restore-stack-view)
         (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
+        (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice)
         (setq org-pretty-entities t)
         (setq org-pretty-entities-include-sub-superscripts t))
 
@@ -673,6 +676,7 @@ idx-a < idx-b!"
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
     (bind-key "s-d" #'notdeft)
-    (advice-remove 'find-file #'org-roam-stack--find-file-advice)))
+    (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+    (advice-remove 'find-file-noselect #'org-roam-stack--find-file-advice) ))
 
 (provide 'org-roam-stack)
