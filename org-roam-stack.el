@@ -163,7 +163,9 @@ Group 2 contains the path.")
     (t nil))
   (recenter)
   (when org-roam-stack--focused
-    (org-roam-stack--buffer-change-hook)))
+    (org-roam-stack--buffer-change-hook)
+    (garbage-collect) ;; call explicitly since focusing seems to waste a lot of memory
+    ))
 
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
   "is the given buffer in the stack?"
