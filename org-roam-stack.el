@@ -141,7 +141,7 @@ Group 2 contains the path.")
   "execute return as defined in org mode map!"
   (interactive)
   (ignore-errors
-    (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+    (org-roam-stack--remove-find-file-advices)
     (let* ((context (org-element-context))
          (type (org-element-property :type context))
          (id (org-element-property :path context)))
@@ -154,7 +154,7 @@ Group 2 contains the path.")
           t)
          (t nil)))
       (funcall (lookup-key org-mode-map (kbd "<RET>")))))
-    (advice-add 'find-file :around #'org-roam-stack--find-file-advice)))
+    (org-roam-stack--advice-find-file-functions)))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (case org-roam-stack--buffer-open-resize-strategy
@@ -604,15 +604,23 @@ idx-a < idx-b!"
     (--each browse-url-handlers
         (advice-remove (cdr it) #'org-roam-stack--browse-url-advice))))
 
+(defun org-roam-stack--advice-find-file-functions ()
+  "advice relevant find file functions with org roam stack find file advice"
+  (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
+  (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice))
+
+(defun org-roam-stack--remove-find-file-advices ()
+  "remove previously added org roam stack find file functions advice"
+    (advice-remove 'find-file #'org-roam-stack--find-file-advice)
+    (advice-remove 'find-file-noselect #'org-roam-stack--find-file-advice))
+
 (defun org-roam-stack--find-file-advice (orig-func &rest args)
   "find file on org roam file will use other open file"
   (if (org-roam-stack--is-roam-file-p (car args))
       (progn
-        (advice-remove 'find-file #'org-roam-stack--find-file-advice)
-        (advice-remove 'find-file-noselect  #'org-roam-stack--find-file-advice)
+        (org-roam-stack--remove-find-file-advices)
         (org-roam-stack--open (car args))
-        (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
-        (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice))
+        (org-roam-stack--advice-find-file-functions))
     (apply orig-func args)))
 
 (defun org-roam-stack--cleanup-kill-buffers ()
@@ -661,6 +669,7 @@ idx-a < idx-b!"
         (when (functionp 'org-roam-server-mode)
           (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
         (bind-key "s-d" #'org-roam-stack--restore-stack-view)
+        (org-roam-stack--advice-find-file-functions)
         (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
         (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice)
         (setq org-pretty-entities t)
@@ -675,8 +684,8 @@ idx-a < idx-b!"
       (advice-remove 'windmove-right #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
+    (org-roam-stack--remove-find-file-advices)
     (bind-key "s-d" #'notdeft)
-    (advice-remove 'find-file #'org-roam-stack--find-file-advice)
-    (advice-remove 'find-file-noselect #'org-roam-stack--find-file-advice) ))
+ ))
 
 (provide 'org-roam-stack)
