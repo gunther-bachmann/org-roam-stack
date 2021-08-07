@@ -167,23 +167,35 @@ Group 2 contains the path.")
     (garbage-collect) ;; call explicitly since focusing seems to waste a lot of memory
     ))
 
+(defun org-roam-stack--cleanup-stack-list ()
+  "remove any elements of the stack list that are no longer valid"
+  (setq org-roam-stack--buffer-list
+        (--filter (and (not (null it))
+                     (bufferp it))
+                  org-roam-stack--buffer-list)))
+
 (defun org-roam-stack--buffer-not-in-stack-p (buffer)
   "is the given buffer in the stack?"
+  (org-roam-stack--cleanup-stack-list)
   (or
    (null buffer)
    (not (memq buffer org-roam-stack--buffer-list))))
 
 (defun org-roam-stack--file-in-stack (file)
+  (org-roam-stack--cleanup-stack-list)
   (--first (string-equal (buffer-file-name it) file) org-roam-stack--buffer-list))
 
 (defun org-roam-stack--buffer-in-stack-p (buffer)
+  (org-roam-stack--cleanup-stack-list)
   (not (org-roam-stack--buffer-not-in-stack-p buffer)))
 
 (defun org-roam-stack--insert-buffer-after-existing (existing-buffer inserted-buffer)
+  (org-roam-stack--cleanup-stack-list)
   (when-let* ((idx (-elem-index existing-buffer org-roam-stack--buffer-list)))
     (setq org-roam-stack--buffer-list (-insert-at idx inserted-buffer org-roam-stack--buffer-list))))
 
 (defun org-roam-stack--insert-buffer-before-existing (existing-buffer inserted-buffer)
+  (org-roam-stack--cleanup-stack-list)
   (when-let* ((idx (-elem-index existing-buffer org-roam-stack--buffer-list)))
     (setq org-roam-stack--buffer-list (-insert-at (1+ idx) inserted-buffer org-roam-stack--buffer-list))))
 
@@ -198,6 +210,7 @@ idx-a < idx-b!"
 (defun org-roam-stack--reset-stack ()
   "close all buffer windows of the stack and clear it"
   (interactive)
+  (org-roam-stack--cleanup-stack-list)
   (--each org-roam-stack--buffer-list
     (ignore-errors (delete-window (get-buffer-window it))))
   (setq org-roam-stack--buffer-list '()))
@@ -242,6 +255,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--enter-stack-from-outside (roam-file)
   "strategy to ensure stack layout if not within the stack currently"
+  (org-roam-stack--cleanup-stack-list)
   (if org-roam-stack--buffer-list
       (if-let ((stack-window (org-roam-stack--get-stack-window-for roam-file)))
           (select-window stack-window)
@@ -264,6 +278,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--open (roam-file)
   "open the given file in stack"
+  (org-roam-stack--cleanup-stack-list)
   (org-roam-stack--enter-stack-from-outside roam-file)
   (when (org-roam-stack--buffer-not-in-stack-p (get-file-buffer roam-file))
     (org-roam-stack--open-file roam-file)
@@ -278,6 +293,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--move-buffer-down ()
   (interactive)
+  (org-roam-stack--cleanup-stack-list)
   (when (org-roam-stack--quick-in-stack-p)
     (when-let* ((buffer-below (org-roam-stack--get-buffer-below-existing (current-buffer)))
                 (buffer-name-below (buffer-file-name buffer-below))
@@ -292,6 +308,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--move-buffer-up ()
   (interactive)
+  (org-roam-stack--cleanup-stack-list)
   (when (org-roam-stack--quick-in-stack-p)
     (when-let* ((buffer-up (org-roam-stack--get-buffer-above-existing (current-buffer)))
                 (buffer-up-name (buffer-file-name buffer-up))
@@ -321,6 +338,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--remove-buffer-from-view-and-stack (buffer)
   "kill the buffer and remove it from view and stack if kill is successful return t, return nil otherwise"
+  (org-roam-stack--cleanup-stack-list)
   (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list)))
     (org-roam-stack--remove-buffer-from-list buffer)
     (let ((win (get-buffer-window buffer))
@@ -360,6 +378,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--get-buffer-below-existing (buffer)
   "get the buffer below the given one (remember list organisation to be reverse)"
+  (org-roam-stack--cleanup-stack-list)
   (when-let* ((idx (-elem-index buffer org-roam-stack--buffer-list))
               (pidx (1- idx)))
     (when (>= pidx 0)
@@ -367,6 +386,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--get-buffer-above-existing (buffer)
   "get the buffer above the given one (remember list organisation to be reverse)"
+  (org-roam-stack--cleanup-stack-list)
   (when-let* ((idx (-elem-index buffer org-roam-stack--buffer-list))
               (nidx (1+ idx)))
     (when (< nidx (length org-roam-stack--buffer-list))
@@ -374,6 +394,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--remove-buffer-from-list (buffer)
   "remove the given buffer from the stack list"
+  (org-roam-stack--cleanup-stack-list)
   (when buffer
     (setq org-roam-stack--buffer-list (remove buffer org-roam-stack--buffer-list))))
 
@@ -413,6 +434,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--balance-stack ()
   "balance (height of) all buffers in the stack"
+  (org-roam-stack--cleanup-stack-list)
   (when org-roam-stack--buffer-list
     (ignore-errors
       (setq org-roam-stack--stack-height (frame-height))
@@ -426,18 +448,21 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--buffer-list-wo-current ()
   "get the list of stack buffers without the current buffer"
+  (org-roam-stack--cleanup-stack-list)
   (let ((buffer (current-buffer)))
     (--filter (not (equal buffer it)) org-roam-stack--buffer-list)))
 
 (defun org-roam-stack--dim-other-buffers ()
   "dim all (non selected) stack buffer"
   (interactive)
+  (org-roam-stack--cleanup-stack-list)
   (--each (org-roam-stack--buffer-list-wo-current)
     (org-roam-stack--dim-buffer it)))
 
 (defun org-roam-stack--undim-other-buffers ()
   "undim all (non selected) stack buffers"
   (interactive)
+  (org-roam-stack--cleanup-stack-list)
   (--each (org-roam-stack--buffer-list-wo-current)
     (org-roam-stack--undim-buffer it)))
 
@@ -475,6 +500,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--delete-window-advice (orig-fun &rest args)
   "make sure to delete the buffer of the killed window from the stack list of buffers, but only if really killed"
+  (org-roam-stack--cleanup-stack-list)
   (if (org-roam-stack--quick-in-stack-p)
       (let* ((window (car args))
              (buffer (window-buffer window)))
@@ -627,7 +653,11 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--cleanup-kill-buffers ()
   "remove buffers from org-roam-stack--buffer-list that are not live any more"
-  (setq org-roam-stack--buffer-list (--filter (and (buffer-live-p it) (window-live-p (get-buffer-window it))) org-roam-stack--buffer-list)))
+  (org-roam-stack--cleanup-stack-list)
+  (setq org-roam-stack--buffer-list
+        (--filter (and (buffer-live-p it)
+                     (window-live-p (get-buffer-window it)))
+                  org-roam-stack--buffer-list)))
 
 (defun org-roam-stack--restore-stack-view ()
   "restore view of org roam stack"
