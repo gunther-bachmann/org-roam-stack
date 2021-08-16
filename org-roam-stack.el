@@ -235,7 +235,7 @@ idx-a < idx-b!"
   (find-file roam-file)
   (org-roam-stack--register-local-keybindings)
   (org-roam-stack--register-org-roam-stack-find-file)
-  (when org-roam-stack--open-ro
+  (when (and org-roam-stack--open-ro (> (buffer-size (current-buffer)) 0))
     (read-only-mode 1)))
 
 (defun org-roam-stack--open-file-below (roam-file)
@@ -644,7 +644,8 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--find-file-advice (orig-func &rest args)
   "find file on org roam file will use other open file"
-  (if (org-roam-stack--is-roam-file-p (car args))
+  (if (and (file-exists-p (car args)) ;; org roam new nodes are not existent at this point
+         (org-roam-stack--is-roam-file-p (car args)))
       (progn
         (org-roam-stack--remove-find-file-advices)
         (org-roam-stack--open (car args))
