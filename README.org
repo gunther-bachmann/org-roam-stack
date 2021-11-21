@@ -11,6 +11,19 @@ provides functions to keep org-roam notes visibly in a stack
 
   [[file:org-roam-stack.screenshot.three-cards.png][Screenshot with three cards]]
 
+* Installation
+
+  Using [[https://github.com/jwiegley/use-package][use-package]], this example shows how easy it is to include org-roam-stack into your setup.
+  #+begin_src emacs-lisp
+    (when (file-exists-p "~/repo/org-roam-stack/org-roam-stack.el")
+          (use-package org-roam-stack
+            :load-path "~/repo/org-roam-stack/"
+            :after (org org-roam)
+            :custom
+            (org-roam-stack--link-adjustments t)
+            (org-roam-stack--open-ro t)))
+  #+end_src
+
 * Rationale
 
   Creating stacks is a method of eliciting, of discovering new information, new aspects of some existing concepts manifested in cards. The
@@ -29,19 +42,3 @@ provides functions to keep org-roam notes visibly in a stack
    - currently the window setup strategy is keeping the stack in a left lane
    - this could also be changed to right, middle and multiple lanes
 ** TODO think about saving stack, visual stack setup, restore stack, relating stacks to cards, creating cards from stacks
-** DONE provide a function that brings the stack in a consistent state
-   - State "DONE"       from "TODO"       [2020-12-26 Sat 20:51]
-   - e.g. analyse the current window setup and construct a stack accordingly
-     - close all buffers that are not displayed (and not changed)
-     - remove buffers visible but not part of the stack
-     - organize stack (left window lane)
-** DONE make sure reentering the stack opens the same card as the one just left
-   - State "DONE"       from "TODO"       [2020-12-24 Thu 16:09]
-   - identify all locations leaving the stack (or simple use buffer update function to record old card)
-   - when entering stack, check whether the old (previous) card is still present, open that one instead
-** DONE fix bug that opens any link into the stack, even though the document is not part of org roam
-   - State "DONE"       from "TODO"       [2020-12-22 Tue 20:38]
-** DONE make sure C-x C-f (find file) does not disrupt the stack
-   - State "DONE"       from "TODO"       [2020-12-22 Tue 20:53]
-** DONE open browser outside the stack (to the right)
-   - State "DONE"       from "TODO"       [2020-12-24 Thu 15:54]
