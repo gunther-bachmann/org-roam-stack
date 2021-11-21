@@ -95,6 +95,7 @@ if by some commands the list gets out of sync, org-roam-stack--restore-stack-vie
     ( "C-x 4"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
     ( "C-x 5"           . org-roam-stack--void) ;; make sure windows are not rearranged into an unknown constellation
     ( "<return>"        . org-roam-stack--return-dwim) ;; make sure to open links even if in view mode
+    ( "C-c C-o"         . org-roam-stack--return-dwim) ;; make sure to open links even if in view mode
     )
   "key redefinitions to make sure window constellation of stack is not disrupted.
 is a list of pairs '(( KEY_BINDING . FUNCTION ) ...).
@@ -147,15 +148,15 @@ Group 2 contains the path.")
     (let* ((context (org-element-context))
          (type (org-element-property :type context))
          (id (org-element-property :path context)))
-    (if (string= type "id")
-      (let ((node (org-roam-populate (org-roam-node-create :id id))))
-        (cond
-         ((org-roam-node-file node)
-          (org-mark-ring-push)
-          (org-roam-stack--open (org-roam-node-file node))
-          t)
-         (t nil)))
-      (funcall (lookup-key org-mode-map (kbd "<RET>")))))
+      (if (string= type "id")
+          (let ((node (org-roam-populate (org-roam-node-create :id id))))
+            (cond
+             ((org-roam-node-file node)
+              (org-mark-ring-push)
+              (org-roam-stack--open (org-roam-node-file node))
+              t)
+             (t nil)))
+        (funcall (lookup-key org-mode-map (kbd "<RET>")))))
     (org-roam-stack--advice-find-file-functions)))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
