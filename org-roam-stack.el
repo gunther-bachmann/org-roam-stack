@@ -33,6 +33,8 @@
 (require 'windmove)
 
 (require 'ol)
+(require 'org)
+(require 'org-roam)
 (require 'org-protocol)
 (require 'notdeft)
 (require 'counsel)
