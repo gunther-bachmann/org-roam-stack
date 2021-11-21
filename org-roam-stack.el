@@ -218,11 +218,23 @@ idx-a < idx-b!"
     (ignore-errors (delete-window (get-buffer-window it))))
   (setq org-roam-stack--buffer-list '()))
 
+(defvar org-roam-stack--log-level 100 "max level to log messages")
+(defun org-roam-stack--log (level msg)
+  "log this message if the level is actually wanted"
+  (when (<= level org-roam-stack--log-level)
+    (message msg)))
+
+(defconst org-roam-stack--TRACE 40 "trace level")
+
 (defun org-roam-stack--open-in-stack (roam-file &optional dir)
+  (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-in-stack %s" roam-file))
   (if (org-roam-stack--buffer-not-in-stack-p (current-buffer))
       (org-roam-stack--open roam-file)
     (if (org-roam-stack--buffer-in-stack-p (get-file-buffer roam-file))
-        (select-window (get-buffer-window (get-file-buffer roam-file)))
+        (progn
+          (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-in-stack %s - select-window" roam-file))
+          (select-window (get-buffer-window (get-file-buffer roam-file))))
+      (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-in-stack %s - split window below" roam-file))
       (split-window-below)
       (let ((buffer (current-buffer)))
         (when (eq dir 'below)
@@ -235,6 +247,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--open-file (roam-file)
   "open the file and register key bindings and file open hooks"
+  (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-file %s" roam-file))
   (find-file roam-file)
   (org-roam-stack--register-local-keybindings)
   (org-roam-stack--register-org-roam-stack-find-file)
@@ -281,6 +294,7 @@ idx-a < idx-b!"
 
 (defun org-roam-stack--open (roam-file)
   "open the given file in stack"
+  (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open %s" roam-file))
   (org-roam-stack--cleanup-stack-list)
   (org-roam-stack--enter-stack-from-outside roam-file)
   (when (org-roam-stack--buffer-not-in-stack-p (get-file-buffer roam-file))
