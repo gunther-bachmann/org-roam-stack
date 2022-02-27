@@ -541,7 +541,9 @@ idx-a < idx-b!"
   (and (derived-mode-p 'org-mode) (org-roam-stack--buffer-in-stack-p (current-buffer))))
 
 (defun org-roam-stack--windmove-advice (orig-func &rest args)
-  "do resize strategy if using wind move commands"
+  "adjust window in stack actually moved to:
+- do resize strategy (if applicable)
+- make r/o"
   (let ((should-open-previous-card (and (not (org-roam-stack--quick-in-stack-p))
                                       org-roam-stack--current-card)))
     (apply orig-func args)
@@ -551,7 +553,9 @@ idx-a < idx-b!"
                (org-roam-stack--buffer-in-stack-p org-roam-stack--current-card))
         (when-let ((sel-win (get-buffer-window org-roam-stack--current-card)))
           (select-window sel-win)))
-      (org-roam-stack--execute-buffer-open-resize-strategy))))
+      (org-roam-stack--execute-buffer-open-resize-strategy)
+      (when org-roam-stack--open-ro
+        (read-only-mode +1)))))
 
 ;; --------------------------------------------------------------------------------
 
