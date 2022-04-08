@@ -38,6 +38,7 @@
 (require 'org-protocol)
 (require 'notdeft)
 (require 'counsel)
+(require 'bind-key)
 
 (defgroup org-roam-stack nil
   "organize org roam cards in a stack"
@@ -52,9 +53,12 @@
 
 (defvar org-roam-stack--buffer-list '()
   "list of buffers that form the stack.
-they are ordered from bottom to top => adding a buffer to the bottom of the stack puts it at the head of this list.
+they are ordered from bottom to top => adding a buffer to the 
+bottom of the stack puts it at the head of this list.
 this list is kept in sync with the visual display of the stack.
-if by some commands the list gets out of sync, org-roam-stack--restore-stack-view can be used to build up the visual according the this list")
+if by some commands the list gets out of sync, 
+org-roam-stack--restore-stack-view can be used to build up the 
+visual according the this list")
 
 (defvar org-roam-stack--buffer-open-resize-strategy 'maximize
   "either 'maximize or 'balance")
@@ -144,12 +148,15 @@ Group 2 contains the path.")
   "execute return as defined in org mode map!"
   (interactive)
   (ignore-errors
+    ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim")
     (org-roam-stack--remove-find-file-advices)
     (let* ((context (org-element-context))
          (type (org-element-property :type context))
          (id (org-element-property :path context)))
+      ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id?")
       (if (string= type "id")
           (let ((node (org-roam-populate (org-roam-node-create :id id))))
+            ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id!")
             (cond
              ((org-roam-node-file node)
               (org-mark-ring-push)
@@ -160,7 +167,7 @@ Group 2 contains the path.")
     (org-roam-stack--advice-find-file-functions)))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
-  (case org-roam-stack--buffer-open-resize-strategy
+  (cl-case org-roam-stack--buffer-open-resize-strategy
     ('maximize (org-roam-stack--maximize-current-buffer))
     ('balance (org-roam-stack--balance-stack))
     (t nil))
@@ -354,7 +361,8 @@ idx-a < idx-b!"
   (message (mapconcat 'identity (--map (buffer-name it) org-roam-stack--buffer-list) ", ")))
 
 (defun org-roam-stack--remove-buffer-from-view-and-stack (buffer)
-  "kill the buffer and remove it from view and stack if kill is successful return t, return nil otherwise"
+  "kill the buffer and remove it from view and stack 
+if kill is successful return t, return nil otherwise"
   (org-roam-stack--cleanup-stack-list)
   (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list)))
     (org-roam-stack--remove-buffer-from-list buffer)
@@ -516,7 +524,8 @@ idx-a < idx-b!"
     (notdeft-note-mode 1)))
 
 (defun org-roam-stack--delete-window-advice (orig-fun &rest args)
-  "make sure to delete the buffer of the killed window from the stack list of buffers, but only if really killed"
+  "make sure to delete the buffer of the killed window 
+from the stack list of buffers, but only if really killed"
   (org-roam-stack--cleanup-stack-list)
   (if (org-roam-stack--quick-in-stack-p)
       (let* ((window (car args))
@@ -615,7 +624,8 @@ idx-a < idx-b!"
    t))
 
 (defun org-roam-stack--view-quit-advice (orig-func &rest args)
-  "make sure that quitting view mode within org roam stack file, actually removes the stack!"
+  "make sure that quitting view mode within 
+org roam stack file, actually removes the stack!"
   (if (org-roam-stack--quick-in-stack-p)
       (progn
         (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
@@ -690,10 +700,10 @@ idx-a < idx-b!"
     (--each (window-list (selected-frame))
       (when (with-selected-window it
               (and (stringp mode-name)
-                 (s-equals? "Org" mode-name )
+                 (string-equal "Org" mode-name )
                  (not (org-roam-stack--file-in-stack (buffer-file-name (window-buffer it))))))
         (delete-window it)))
-    (when (not (--first (s-equals? "NotDeft" (with-selected-window it (if (stringp mode-name) mode-name "")))  (window-list (selected-frame))))
+    (when (not (--first (string-equal "NotDeft" (with-selected-window it (if (stringp mode-name) mode-name "")))  (window-list (selected-frame))))
       (notdeft nil))
     (--each (reverse files) (org-roam-stack--file-in-stack it))
     (when (and file
