@@ -291,7 +291,14 @@ idx-a < idx-b!"
     (when (windmove-find-other-window 'left)
       (windmove-left))
     (when (not (windmove-find-other-window 'right))
-      (split-window-horizontally))))
+      (when-let (orb (get-buffer-window org-roam-buffer))
+        (delete-window orb))
+      (split-window-horizontally)
+      (when-let (ndw (windmove-find-other-window 'right))
+        (with-selected-window ndw
+          (with-selected-window
+              (split-window-below (round (* 0.7 (window-height))))
+            (pop-to-buffer-same-window org-roam-buffer)))))))
 
 (defun org-roam-stack--open-any-file (file)
   (if (org-roam-stack--is-roam-file-p file)
