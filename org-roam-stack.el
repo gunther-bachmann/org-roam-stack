@@ -636,6 +636,9 @@ org roam stack file, actually removes the stack!"
   (if (org-roam-stack--quick-in-stack-p)
       (progn
         (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
+        (unless org-roam-stack--buffer-list
+          (when (get-buffer-window org-roam-buffer)
+            (org-roam-buffer-toggle)))
         (org-roam-stack--execute-buffer-open-resize-strategy))
     (apply orig-func args)))
 
