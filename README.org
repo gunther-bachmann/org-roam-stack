@@ -42,3 +42,18 @@ provides functions to keep org-roam notes visibly in a stack
    - currently the window setup strategy is keeping the stack in a left lane
    - this could also be changed to right, middle and multiple lanes
 ** TODO think about saving stack, visual stack setup, restore stack, relating stacks to cards, creating cards from stacks
+   - stacks are regular org files
+   - (re)order links in the stack corresponds to order on the stack and stays in sync
+   - stacks are named (with default = stack-${hash})
+   - stacks are saved/restored
+   - stack files can be extended with regular org elements
+   - stacks are part of org roam
+   - there can be only one stack window open at a time (not part of the stack itself)
+   - opening a stack should
+     - put that buffer in this special window position
+     - close and save an existing stack
+     - open all windows of that stack
+   - moving in the stack buffer will sync the buffers in the stack
+   - adding anything to the stack will add the link into the stack buffer (in tail position)
+   - selection of a buffer in the stack will center the stack buffer to that link position
+** TODO provide a window setup that shows the org-roam-buffer(-toggle) below the notdeft window
