@@ -720,6 +720,10 @@ org roam stack file, actually removes the stack!"
              (org-roam-stack--file-in-stack file))
       (org-roam-stack--open file))))
 
+(defun org-roam-stack--switch-to-rw-mode (&rest args)
+  "switch org roam stack buffer to r/w mode"
+  (read-only-mode -1))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -732,6 +736,7 @@ org roam stack file, actually removes the stack!"
         (org-roam-stack--register-open-file-protocol)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
+        (advice-add 'org-ctrl-c-ctrl-c :before #'org-roam-stack--switch-to-rw-mode)
         (when org-roam-stack--link-adjustments
           (org-roam-stack--register-additional-keywords))
         (when (functionp 'windmove-up)
@@ -759,6 +764,7 @@ org roam stack file, actually removes the stack!"
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
     (org-roam-stack--remove-find-file-advices)
+    (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
     (bind-key "s-d" #'notdeft)
  ))
 
