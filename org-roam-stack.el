@@ -147,24 +147,26 @@ Group 2 contains the path.")
 (defun org-roam-stack--return-dwim ()
   "execute return as defined in org mode map!"
   (interactive)
+  ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim")
   (ignore-errors
-    ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim")
     (org-roam-stack--remove-find-file-advices)
-    (let* ((context (org-element-context))
-         (type (org-element-property :type context))
-         (id (org-element-property :path context)))
-      ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id?")
-      (if (string= type "id")
-          (let ((node (org-roam-populate (org-roam-node-create :id id))))
-            ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id!")
-            (cond
-             ((org-roam-node-file node)
-              (org-mark-ring-push)
-              (org-roam-stack--open (org-roam-node-file node))
-              t)
-             (t nil)))
-        (funcall (lookup-key org-mode-map (kbd "<RET>")))))
-    (org-roam-stack--advice-find-file-functions)))
+    (unwind-protect
+        (progn
+          (let* ((context (org-element-context))
+                 (type    (org-element-property :type context))
+                 (id      (org-element-property :path context)))
+            ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id?")
+            (if (string= type "id")
+                (let ((node (org-roam-populate (org-roam-node-create :id id))))
+                  ;; (org-roam-stack--log 10 "org-roam-stack--return-dwim: on id!")
+                  (cond
+                   ((org-roam-node-file node)
+                    (org-mark-ring-push)
+                    (org-roam-stack--open (org-roam-node-file node))
+                    t)
+                   (t nil)))
+              (funcall (lookup-key org-mode-map (kbd "<RET>"))))))
+      (org-roam-stack--advice-find-file-functions))))
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (cl-case org-roam-stack--buffer-open-resize-strategy
@@ -245,6 +247,7 @@ idx-a < idx-b!"
       (split-window-below)
       (let ((buffer (current-buffer)))
         (when (eq dir 'below)
+          (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-in-stack %s - other window, because below" roam-file))
           (other-window 1))
         (org-roam-stack--open-file roam-file)
         (if (eq dir 'below)
@@ -312,6 +315,7 @@ idx-a < idx-b!"
   (org-roam-stack--cleanup-stack-list)
   (org-roam-stack--enter-stack-from-outside roam-file)
   (when (org-roam-stack--buffer-not-in-stack-p (get-file-buffer roam-file))
+    (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open %s - buffer not in stack" roam-file))
     (org-roam-stack--open-file roam-file)
     (push (get-file-buffer roam-file) org-roam-stack--buffer-list))
   (org-roam-stack--execute-buffer-open-resize-strategy))
@@ -724,6 +728,14 @@ org roam stack file, actually removes the stack!"
   "switch org roam stack buffer to r/w mode"
   (read-only-mode -1))
 
+(defun org-roam-stack--node-visit (node &optional other-window force)
+  "From the current buffer, visit NODE."
+  (interactive (list (org-roam-node-at-point t) current-prefix-arg t))
+  (org-roam-stack--remove-find-file-advices)
+  (unwind-protect
+      (org-roam-stack--open-in-stack (org-roam-node-file node))
+    (org-roam-stack--advice-find-file-functions)))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -748,6 +760,7 @@ org roam stack file, actually removes the stack!"
         (when (functionp 'org-roam-server-mode)
           (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
         (bind-key "s-d" #'org-roam-stack--restore-stack-view)
+        (bind-key "RET" #'org-roam-stack--node-visit 'org-roam-node-map)
         (org-roam-stack--advice-find-file-functions)
         (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
         (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice)
@@ -766,6 +779,7 @@ org roam stack file, actually removes the stack!"
     (org-roam-stack--remove-find-file-advices)
     (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
     (bind-key "s-d" #'notdeft)
+    (bind-key "RET" #'org-roam-node-visit 'org-roam-node-map)
  ))
 
 (provide 'org-roam-stack)
