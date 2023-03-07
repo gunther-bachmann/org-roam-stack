@@ -39,6 +39,7 @@
 (require 'notdeft)
 (require 'counsel)
 (require 'bind-key)
+(require 'async)
 
 (defgroup org-roam-stack nil
   "organize org roam cards in a stack"
@@ -77,6 +78,11 @@ visual according the this list")
 (defcustom org-roam-stack--open-ro nil
   "open all org roam files read only"
   :type 'boolean
+  :group 'org-roam-stack)
+
+(defcustom org-roam-stack--maximize-steps '(6 3 2 1 1)
+  "animation steps (divisors) for max height"
+  :type 'list
   :group 'org-roam-stack)
 
 (defcustom org-roam-stack--local-keybindings
@@ -170,13 +176,13 @@ Group 2 contains the path.")
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (cl-case org-roam-stack--buffer-open-resize-strategy
-    ('maximize (org-roam-stack--maximize-current-buffer))
+    ('maximize (org-roam-stack--animated-maximize-current-buffer))
     ('balance (org-roam-stack--balance-stack))
     (t nil))
   (recenter)
   (when org-roam-stack--focused
     (org-roam-stack--buffer-change-hook)
-    (garbage-collect) ;; call explicitly since focusing seems to waste a lot of memory
+    (async-start #'garbage-collect) ;; call explicitly since focusing seems to waste a lot of memory
     ))
 
 (defun org-roam-stack--cleanup-stack-list ()
@@ -449,15 +455,17 @@ if kill is successful return t, return nil otherwise"
     (if (eq org-roam-stack--buffer-open-resize-strategy 'maximize)
         (setq org-roam-stack--buffer-open-resize-strategy nil)
       (setq org-roam-stack--buffer-open-resize-strategy 'maximize))
-    (org-roam-stack--maximize-current-buffer)))
+    (org-roam-stack--animated-maximize-current-buffer)))
 
-(defun org-roam-stack--maximize-current-buffer ()
+(defun org-roam-stack--animated-maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
-  (setq org-roam-stack--stack-height (frame-height))
-  (ignore-errors
-    (--dotimes 2 ;; until resize is stable
-      (when (< 1 (cl-list-length org-roam-stack--buffer-list))
-        (enlarge-window org-roam-stack--stack-height)))))
+  (-each org-roam-stack--maximize-steps
+    (lambda (divisor)
+      (setq org-roam-stack--stack-height (/ (frame-height) divisor))
+      (ignore-errors
+        (when (< 1 (cl-list-length org-roam-stack--buffer-list))
+          (enlarge-window org-roam-stack--stack-height)
+          (redisplay t))))))
 
 (defun org-roam-stack--interactive-balance-stack ()
   "balance stack and keep this balancing choice for next resize actions"
