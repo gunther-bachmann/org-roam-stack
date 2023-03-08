@@ -182,7 +182,7 @@ Group 2 contains the path.")
   (recenter)
   (when org-roam-stack--focused
     (org-roam-stack--buffer-change-hook)
-    (async-start #'garbage-collect) ;; call explicitly since focusing seems to waste a lot of memory
+    (async-start #'garbage-collect 'ignore) ;; call explicitly since focusing seems to waste a lot of memory
     ))
 
 (defun org-roam-stack--cleanup-stack-list ()
