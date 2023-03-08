@@ -518,13 +518,40 @@ if kill is successful return t, return nil otherwise"
   (--each (org-roam-stack--buffer-list-wo-current)
     (org-roam-stack--undim-buffer it)))
 
-(defun org-roam-stack--dim-buffer (buffer)
+(defun org-roam-stack--dim-buffer-old (buffer)
   "put a dim overlay on the visible part of the buffer"
   (with-current-buffer buffer
     (let* ((w (get-buffer-window buffer))
            (focus-overlay (make-overlay (window-start w) (window-end w))))
       (overlay-put focus-overlay 'face 'org-roam-stack-inactive-face)
       (overlay-put focus-overlay 'org-roam-stack-dim t))))
+
+(defun org-roam-stack--dim-buffer (buffer)
+  "put a dim overlay on the visible part of the buffer"
+  (save-restriction
+    (with-current-buffer buffer
+      (let* ((w (get-buffer-window buffer)))
+        (org-roam-stack--dim-buffer-lines-from (window-start w) (window-end w))))))
+
+(defun org-roam-stack--dim-buffer-lines-from (start end)
+  (goto-char start)
+  (while (< (point) (min (point-max) end))
+    (org-roam-stack--dim-buffer-line (point) end)))
+
+(defun org-roam-stack--dim-buffer-line (start max-end)  
+  (beginning-of-line)  
+  (if (and (eq ?* (char-after))
+         (re-search-forward "^\\*+ " max-end t))
+      (org-roam-stack--dim-to-end-of-line (- (point) 2))
+    (org-roam-stack--dim-to-end-of-line (point))))
+
+(defun org-roam-stack--dim-to-end-of-line (start)
+  (end-of-line)
+  (let* ((focus-overlay (make-overlay start (point))))
+    (overlay-put focus-overlay 'face 'org-roam-stack-inactive-face)
+    (overlay-put focus-overlay 'org-roam-stack-dim t))
+  (forward-line)
+  (beginning-of-line))
 
 (defun org-roam-stack--undim-buffer (buffer)
   "remove dim overlay of the given buffer"
