@@ -341,10 +341,14 @@ idx-a < idx-b!"
                 (buffer-below-idx (-elem-index buffer-below org-roam-stack--buffer-list))
                 (c-buffer-name (buffer-file-name (current-buffer)))
                 (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
-      (find-file buffer-name-below)
-      (other-window 1)
-      (find-file c-buffer-name)
-      (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list buffer-below-idx c-buffer-idx org-roam-stack--buffer-list))
+      (org-roam-stack--remove-find-file-advices)
+      (unwind-protect
+          (progn
+            (find-file buffer-name-below)
+            (other-window 1)
+            (find-file c-buffer-name)
+            (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list buffer-below-idx c-buffer-idx org-roam-stack--buffer-list)))
+        (org-roam-stack--advice-find-file-functions))
       (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 (defun org-roam-stack--move-buffer-up ()
@@ -356,10 +360,14 @@ idx-a < idx-b!"
                 (buffer-up-idx (-elem-index buffer-up org-roam-stack--buffer-list))
                 (c-buffer-name (buffer-file-name (current-buffer)))
                 (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
-      (find-file buffer-up-name)
-      (other-window -1)
-      (find-file c-buffer-name)
-      (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list c-buffer-idx buffer-up-idx org-roam-stack--buffer-list))
+      (org-roam-stack--remove-find-file-advices)
+      (unwind-protect
+          (progn
+            (find-file buffer-up-name)
+            (other-window -1)
+            (find-file c-buffer-name)
+            (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list c-buffer-idx buffer-up-idx org-roam-stack--buffer-list)))
+        (org-roam-stack--advice-find-file-functions))
       (org-roam-stack--execute-buffer-open-resize-strategy))))
 
 (defun org-roam-stack--buffer-change-hook ()
