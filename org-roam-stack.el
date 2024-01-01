@@ -122,6 +122,16 @@ e.g. '(( \"C-x C-k\" . org-roam-stack--remove-current-buffer-from-stack ))"
   :type 'string
   :group 'org-roam-stack)
 
+(defcustom org-roam-stack--pre-anim-maximize-function nil
+  "function run before the maximize animation is executed"
+  :type 'symbol
+  :group 'org-roam-stack)
+
+(defcustom org-roam-stack--post-anim-maximize-function nil
+  "function run after the maximize animation was executed"
+  :type 'symbol
+  :group 'org-roam-stack)
+
 (defface org-roam-stack--roam-link-face
   `((t (:inherit org-link :foreground ,org-roam-stack--roam-link-color)))
   "Face for roam links in org-roam-stack.")
@@ -467,13 +477,15 @@ if kill is successful return t, return nil otherwise"
 
 (defun org-roam-stack--animated-maximize-current-buffer ()
   "maximize current buffer, reduce all other stack windows to minimum"
+  (run-hooks 'org-roam-stack--pre-anim-maximize-function)
   (-each org-roam-stack--maximize-steps
     (lambda (divisor)
       (setq org-roam-stack--stack-height (/ (frame-height) divisor))
       (ignore-errors
         (when (< 1 (cl-list-length org-roam-stack--buffer-list))
           (enlarge-window org-roam-stack--stack-height)
-          (redisplay t))))))
+          (redisplay t)))))
+  (run-hooks 'org-roam-stack--post-anim-maximize-function))
 
 (defun org-roam-stack--interactive-balance-stack ()
   "balance stack and keep this balancing choice for next resize actions"
