@@ -638,9 +638,12 @@ from the stack list of buffers, but only if really killed"
   "get information about the roam link at point"
   "unknown")
 
+;;;###autoload
 (defun org-roam-stack--is-roam-file-p (file-name)
   "is the given file part of the org roam repo"
-  (and file-name (string-prefix-p org-roam-directory (expand-file-name file-name))))
+  (and file-name
+     (string-prefix-p org-roam-directory (expand-file-name file-name))
+     (not (string-prefix-p "CAPTURE-" file-name))))
 
 ;; thanks to the great org-ref package
 (defun org-roam-stack--match-roam-file-link (&optional limit)
@@ -798,7 +801,6 @@ org roam stack file, actually removes the stack!"
 ;;;###autoload
 (define-minor-mode org-roam-stack-mode
   "Minor mode to organize org roam cards in a stack"
-  :lighter " ors"
   :global t
   (if org-roam-stack-mode
       (progn
@@ -813,31 +815,26 @@ org roam stack file, actually removes the stack!"
           (advice-add 'windmove-right :around #'org-roam-stack--windmove-advice)
           (advice-add 'windmove-left :around #'org-roam-stack--windmove-advice)
           (advice-add 'windmove-down :around #'org-roam-stack--windmove-advice))
-        ;; make sure that starting the org roam server does not place another :roam-file entry!
-        (when (functionp 'org-roam-server-mode)
-          (advice-add 'org-roam-server-mode :after 'org-roam-stack--register-open-file-protocol-advice))
         (bind-key "s-d" #'org-roam-stack--restore-stack-view)
         (bind-key "RET" #'org-roam-stack--node-visit 'org-roam-node-map)
         (org-roam-stack--advice-find-file-functions)
-        (advice-add 'find-file :around #'org-roam-stack--find-file-advice)
-        (advice-add 'find-file-noselect :around #'org-roam-stack--find-file-advice)
         (setq org-pretty-entities t)
         (setq org-pretty-entities-include-sub-superscripts t))
 
     (org-roam-stack--unregister-open-file-protocol)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
+    (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
     (org-roam-stack--unregister-additional-keywords)
     (when (functionp 'windmove-up)
       (advice-remove 'windmove-up #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-right #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-left #'org-roam-stack--windmove-advice)
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
-    (org-roam-stack--remove-find-file-advices)
-    (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
     (when (fboundp 'notdeft)
       (bind-key "s-d" #'notdeft))
     (bind-key "RET" #'org-roam-node-visit 'org-roam-node-map)
+    (org-roam-stack--remove-find-file-advices)
  ))
 
 (provide 'org-roam-stack)
