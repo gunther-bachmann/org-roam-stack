@@ -36,7 +36,6 @@
 (require 'org)
 (require 'org-roam)
 (require 'org-protocol)
-(require 'notdeft)
 (require 'counsel)
 (require 'bind-key)
 (require 'async)
@@ -585,9 +584,10 @@ if kill is successful return t, return nil otherwise"
   (setq org-protocol-protocol-alist (--remove (string-equal "roam-file" (plist-get (cdr it) :protocol)) org-protocol-protocol-alist))
   (push '("org-roam-file"  :protocol "roam-file"   :function org-roam-protocol-open-file) org-protocol-protocol-alist))
 
-(defun org-roam-stack--notdeft-find-file-advice (_ &rest args)
-  (prog1 (org-roam-stack--open (car args))
-    (notdeft-note-mode 1)))
+(when (fboundp 'notdeft-note-mode)
+  (defun org-roam-stack--notdeft-find-file-advice (_ &rest args)
+    (prog1 (org-roam-stack--open (car args))
+      (notdeft-note-mode 1))))
 
 (defun org-roam-stack--delete-window-advice (orig-fun &rest args)
   "make sure to delete the buffer of the killed window 
@@ -772,7 +772,9 @@ org roam stack file, actually removes the stack!"
                  (string-equal "Org" mode-name )
                  (not (org-roam-stack--file-in-stack (buffer-file-name (window-buffer it))))))
         (delete-window it)))
-    (when (not (--first (string-equal "NotDeft" (with-selected-window it (if (stringp mode-name) mode-name "")))  (window-list (selected-frame))))
+    (when (and (fboundp 'notdeft)
+             (not (--first (string-equal "NotDeft" (with-selected-window it (if (stringp mode-name) mode-name "")))
+                         (window-list (selected-frame)))))
       (notdeft nil))
     (--each (reverse files) (org-roam-stack--file-in-stack it))
     (when (and file
@@ -833,7 +835,8 @@ org roam stack file, actually removes the stack!"
       (advice-remove 'windmove-down #'org-roam-stack--windmove-advice))
     (org-roam-stack--remove-find-file-advices)
     (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
-    (bind-key "s-d" #'notdeft)
+    (when (fboundp 'notdeft)
+      (bind-key "s-d" #'notdeft))
     (bind-key "RET" #'org-roam-node-visit 'org-roam-node-map)
  ))
 
