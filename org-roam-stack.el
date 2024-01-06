@@ -270,6 +270,7 @@ idx-a < idx-b!"
           (org-roam-stack--log org-roam-stack--TRACE (format "org-roam-stack--open-in-stack %s - other window, because below" roam-file))
           (other-window 1))
         (org-roam-stack--open-file roam-file)
+        (set-window-dedicated-p (selected-window) t)
         (if (eq dir 'below)
             (org-roam-stack--insert-buffer-after-existing buffer (current-buffer))
           (org-roam-stack--insert-buffer-before-existing buffer (current-buffer)))
@@ -281,6 +282,7 @@ idx-a < idx-b!"
   (find-file roam-file)
   (org-roam-stack--register-local-keybindings)
   (org-roam-stack--register-org-roam-stack-find-file)
+  (set-window-dedicated-p (selected-window) t)
   (when (and org-roam-stack--open-ro (> (buffer-size (current-buffer)) 0))
     (read-only-mode 1)))
 
@@ -602,11 +604,11 @@ from the stack list of buffers, but only if really killed"
       (let* ((window (car args))
              (buffer (window-buffer window)))
         (if (org-roam-stack--buffer-not-in-stack-p buffer)
-            (apply orig-fun args)
+            (ignore-errors (apply orig-fun args))
           (when-let ((idx-before (-elem-index buffer org-roam-stack--buffer-list))
                      (filename (buffer-file-name buffer)))
             (org-roam-stack--remove-buffer-from-list buffer)
-            (apply orig-fun args)
+            (ignore-errors (apply orig-fun args))
             ;; check for still active window for the buffer
             (if-let* ((re-buffer (get-file-buffer filename))
                       (re-win (get-buffer-window re-buffer)))
@@ -614,7 +616,7 @@ from the stack list of buffers, but only if really killed"
               (ignore-errors (kill-buffer-if-not-modified buffer))
               (when (org-roam-stack--quick-in-stack-p)
                 (org-roam-stack--execute-buffer-open-resize-strategy))))))
-    (apply orig-fun args)))
+    (ignore-errors (apply orig-fun args))))
 
 (defun org-roam-stack--quick-in-stack-p ()
   "check quickly whether I'm in the org roam stack"
@@ -701,14 +703,18 @@ from the stack list of buffers, but only if really killed"
   "make sure that quitting view mode within 
 org roam stack file, actually removes the stack!"
   (if (org-roam-stack--quick-in-stack-p)
-      (progn
+      (let ((next-focus-buffer (or (org-roam-stack--get-buffer-above-existing (current-buffer))
+                                  (org-roam-stack--get-buffer-below-existing (current-buffer)))))
+        (org-roam-stack--move-buffer-down)
         (org-roam-stack--remove-buffer-from-view-and-stack (current-buffer))
         (unless org-roam-stack--buffer-list
           (when (get-buffer-window org-roam-buffer)
             (org-roam-buffer-toggle)))
+        (when (and org-roam-stack--buffer-list
+                 next-focus-buffer)
+          (org-roam-stack--open-in-stack (buffer-file-name next-focus-buffer)))
         (org-roam-stack--execute-buffer-open-resize-strategy))
-    (apply orig-func args)))
-
+    (ignore-errors (apply orig-func args))))
 
 (defun org-roam-stack--browse-url-advice (orig-func &rest args)
   "make sure browser opened is in rightmost window"
