@@ -646,11 +646,12 @@ from the stack list of buffers, but only if really killed"
   "unknown")
 
 ;;;###autoload
-(defun org-roam-stack--is-roam-file-p (file-name)
+(defun org-roam-stack--is-roam-file-p (&optional file-name)
   "is the given file part of the org roam repo"
-  (and file-name
-     (string-prefix-p org-roam-directory (expand-file-name file-name))
-     (not (string-prefix-p "CAPTURE-" file-name))))
+  (let ((filename-used (or file-name (buffer-file-name))))
+    (and filename-used
+       (string-prefix-p org-roam-directory (expand-file-name filename-used))
+       (not (string-prefix-p "CAPTURE-" filename-used)))))
 
 ;; thanks to the great org-ref package
 (defun org-roam-stack--match-roam-file-link (&optional limit)
