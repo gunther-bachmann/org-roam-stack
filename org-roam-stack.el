@@ -808,6 +808,13 @@ org roam stack file, actually removes the stack!"
       (org-roam-stack--open-in-stack (org-roam-node-file node))
     (org-roam-stack--advice-find-file-functions)))
 
+;; allow to wrap org source edit, making editing source in same window possible
+(defun org-roam-stack--release-window-dedication (&rest args)
+  (set-window-dedicated-p (selected-window) nil))
+
+(defun org-roam-stack--set-window-dedication (&rest args)
+  (set-window-dedicated-p (selected-window) t))
+
 ;; --------------------------------------------------------------------------------
 
 ;;;###autoload
@@ -817,6 +824,8 @@ org roam stack file, actually removes the stack!"
   (if org-roam-stack-mode
       (progn
         (org-roam-stack--register-open-file-protocol)
+        (advice-add 'org-edit-special :before #'org-roam-stack--release-window-dedication)
+        (advice-add 'org-edit-src-exit :after #'org-roam-stack--set-window-dedication)
         (advice-add 'delete-window :around #'org-roam-stack--delete-window-advice)
         (advice-add 'View-quit :around #'org-roam-stack--view-quit-advice)
         (advice-add 'org-ctrl-c-ctrl-c :before #'org-roam-stack--switch-to-rw-mode)
@@ -834,6 +843,8 @@ org roam stack file, actually removes the stack!"
         (setq org-pretty-entities-include-sub-superscripts t))
 
     (org-roam-stack--unregister-open-file-protocol)
+    (advice-remove 'org-edit-special #'org-roam-stack--release-window-dedication)
+    (advice-remove 'org-edit-src-exit #'org-roam-stack--set-window-dedication)
     (advice-remove 'delete-window #'org-roam-stack--delete-window-advice)
     (advice-remove 'View-quit #'org-roam-stack--view-quit-advice)
     (advice-remove 'org-ctrl-c-ctrl-c #'org-roam-stack--switch-to-rw-mode)
