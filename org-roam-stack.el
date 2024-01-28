@@ -700,6 +700,11 @@ from the stack list of buffers, but only if really killed"
    org-roam-stack--font-lock-keyword-for-roam-link
    t))
 
+(defun org-roam-stack--only-notdeft-windows-left-p ()
+  (--all? (string= notdeft-buffer it)
+          (--map (buffer-name (window-buffer it))
+                 (window-list))))
+
 (defun org-roam-stack--view-quit-advice (orig-func &rest args)
   "make sure that quitting view mode within 
 org roam stack file, actually removes the stack!"
@@ -714,7 +719,10 @@ org roam stack file, actually removes the stack!"
         (when (and org-roam-stack--buffer-list
                  next-focus-buffer)
           (org-roam-stack--open-in-stack (buffer-file-name next-focus-buffer)))
-        (org-roam-stack--execute-buffer-open-resize-strategy))
+        (org-roam-stack--execute-buffer-open-resize-strategy)
+        (when (and (< 1 (length (window-list)))
+                 (org-roam-stack--only-notdeft-windows-left-p))
+          (delete-window (car (window-list)))))
     (ignore-errors (apply orig-func args))))
 
 (defun org-roam-stack--browse-url-advice (orig-func &rest args)
