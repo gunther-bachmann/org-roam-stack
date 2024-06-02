@@ -662,7 +662,7 @@ from the stack list of buffers, but only if really killed"
              (save-excursion
                (beginning-of-line)
                (not (looking-at "# "))))
-    (forward-char -2)
+    (when (version< org-version "9.7.1") (forward-char -2))
     (let ((this-link (org-element-context)))
       (if (and (-contains? '("file" "deft" "id") (org-element-property :type this-link))
              (or (org-roam-stack--is-roam-file-p (org-element-property :path this-link))
