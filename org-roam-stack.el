@@ -190,8 +190,8 @@ Group 2 contains the path.")
 
 (defun org-roam-stack--execute-buffer-open-resize-strategy ()
   (cl-case org-roam-stack--buffer-open-resize-strategy
-    ('maximize (org-roam-stack--animated-maximize-current-buffer))
-    ('balance (org-roam-stack--balance-stack))
+    (maximize (org-roam-stack--animated-maximize-current-buffer))
+    (balance (org-roam-stack--balance-stack))
     (t nil))
   (recenter)
   (when org-roam-stack--focused
