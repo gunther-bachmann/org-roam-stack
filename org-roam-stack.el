@@ -373,6 +373,7 @@ idx-a < idx-b!"
   (when (org-roam-stack--quick-in-stack-p)
     (when-let* ((buffer-up (org-roam-stack--get-buffer-above-existing (current-buffer)))
                 (buffer-up-name (buffer-file-name buffer-up))
+                (window-up (get-buffer-window buffer-up))
                 (buffer-up-idx (-elem-index buffer-up org-roam-stack--buffer-list))
                 (c-buffer-name (buffer-file-name (current-buffer)))
                 (c-buffer-idx (-elem-index (current-buffer) org-roam-stack--buffer-list)))
@@ -380,7 +381,8 @@ idx-a < idx-b!"
       (unwind-protect
           (progn
             (find-file buffer-up-name)
-            (other-window -1)
+            ;;(other-window -1)
+            (select-window window-up)
             (find-file c-buffer-name)
             (setq org-roam-stack--buffer-list (org-roam-stack--exchange-buffers-in-list c-buffer-idx buffer-up-idx org-roam-stack--buffer-list)))
         (org-roam-stack--advice-find-file-functions))
